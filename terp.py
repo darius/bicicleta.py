@@ -49,7 +49,7 @@ def Number(n):
             '*': lambda _: {'()': lambda doing:
                             Number(n * call(doing, '_')['__value__'])},
             '==': lambda _: {'()': lambda operation:
-                             (lambda other: Claim('__value__' in other and n == other['__value__']))(call(operation, '_'))}}
+                             Claim(n == call(operation, '_').get('__value__'))}}
 
 def Claim(value):
     return true_claim if value else false_claim
