@@ -29,7 +29,7 @@ class Extend(namedtuple('_Extend', 'base name bindings')):
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
     def eval(self, env):
-        return extend(self.base.eval(env),
+        return extend(self.base.eval(env), # XXX I'll bet this needs to be lazy
                       {slot: lambda rcvr: expr.eval(extend_env(env,
                                                                {self.name: rcvr}))
                        for slot, expr in self.bindings})
