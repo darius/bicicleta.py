@@ -173,13 +173,30 @@ _           = \s*
 ## cmping.eval(initial_env)['__value__']
 #. 168
 
-fac, = parse("""
+def make_fac(n):
+    fac, = parse("""
 {env: 
  fac = {fac:
         '()' = fac.n.'=='(_=0).if(so  = 1,
                                   not = fac.n.'*'(_ = env.fac(n = fac.n.'-'(_=1))))}
-}.fac(n=4)""")
+}.fac(n=%d)""" % n)
+    return fac
+
+fac = make_fac(4)
 ## fac
 #. @<>{env: fac=@<>{fac: ()=@fac.n.=={: _=0}.().if{: so=1, not=@fac.n.*{: _=@env.fac{: n=@fac.n.-{: _=1}.()}.()}.()}.()}}.fac{: n=4}.()
 ## fac.eval(initial_env)['__value__']
 #. 24
+
+def timed(f):
+    import time
+    start = time.clock()
+    result = f()
+    return time.clock() - start, result
+
+def bench(bound=15):
+    print '%5s  %3s %13s' % ('Secs', 'N', 'fac N')
+    for n in range(bound):
+        fac = make_fac(n)
+        seconds, result = timed(lambda: fac.eval(initial_env)['__value__'])
+        print '%5.3g  %3d %13d' % (seconds, n, result)
