@@ -100,6 +100,19 @@ def extend_env(env, bindings):
 
 initial_env = {'<>': {}}
 
+def show(obj):
+    value = obj.get('__value__')
+    if value is not None:
+        return str(value)
+    else:
+        return '{%s}' % ', '.join(name for name, call_thunk in obj.items())
+
+def run(program):
+    if isinstance(program, str):
+        program, = parse(program)
+    result = program.eval(initial_env)
+    return show(result)
+
 def attach_affixes(primary, *affixes):
     expr = primary
     for affix in affixes:
@@ -154,8 +167,8 @@ _           = \s*
 ## wtf, = parse("{x=42, y=55}.x")
 ## wtf
 #. @<>{: x=42, y=55}.x
-## wtf.eval(initial_env)['__value__']
-#. 42
+## run(wtf)
+#. '42'
 
 ## parse("{y=42, x=55, z=137}.x")[0].eval(initial_env)['__value__']
 #. 55
@@ -167,14 +180,14 @@ _           = \s*
 ## adding, = parse("137.'+' {_=1}.'()'")
 ## adding
 #. 137.+{: _=1}.()
-## adding.eval(initial_env)['__value__']
-#. 138
+## run(adding)
+#. '138'
 
 ## cmping, = parse("137.'=='(_=1).if(so=42, not=168)")
 ## repr(cmping) == repr(parse("137.'=='{_=1}.'()'.if{so=42, not=168}.'()'")[0])
 #. True
-## cmping.eval(initial_env)['__value__']
-#. 168
+## run(cmping)
+#. '168'
 
 def make_fac(n):
     fac, = parse("""
@@ -188,8 +201,8 @@ def make_fac(n):
 fac = make_fac(4)
 ## fac
 #. @<>{env: fac=@<>{fac: ()=@fac.n.=={: _=0}.().if{: so=1, not=@fac.n.*{: _=@env.fac{: n=@fac.n.-{: _=1}.()}.()}.()}.()}}.fac{: n=4}.()
-## fac.eval(initial_env)['__value__']
-#. 24
+## run(fac)
+#. '24'
 
 def timed(f):
     import time
