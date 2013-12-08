@@ -2,7 +2,6 @@
 Interpreter for a toy dialect of Bicicleta.
 """
 
-from collections import namedtuple
 from peglet import Parser, hug
 
 class VarRef(object):
