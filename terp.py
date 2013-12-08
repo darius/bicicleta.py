@@ -53,10 +53,13 @@ class Thunk(object):
         assert isinstance(expr, Extend)
         self.expr = expr
         self.env = env
+        self.forced = None
     def __repr__(self):
         return 'Thunk(%r)' % self.expr
     def force(self):
-        return self.expr.force(self.env)
+        if self.forced is None:
+            self.forced = self.expr.force(self.env)
+        return self.forced
     def get(self, key):
         return self.force().get(key)
     def __getitem__(self, key):
