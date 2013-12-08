@@ -42,12 +42,12 @@ class Extend(object):
     def eval(self, env):
         return Thunk(self, env)
     def force(self, env):
-        return extend(
-            self.base.eval(env),
-            {slot: (lambda expr:
-                    lambda rcvr: expr.eval(extend_env(env, {self.name: rcvr}))
-                )(expr)
-             for slot, expr in self.bindings})
+        return extend(self.base.eval(env),
+                      {slot: make_slot_thunk(self.name, expr, env)
+                       for slot, expr in self.bindings})
+
+def make_slot_thunk(name, expr, env):
+    return lambda rcvr: expr.eval(extend_env(env, {name: rcvr}))
 
 class Thunk(object): 
     def __init__(self, expr, env):
