@@ -256,7 +256,7 @@ def make_tarai():
               so = env.tarai(x=env.tarai(x=tarai.x-1, y=tarai.y, z=tarai.z),
                              y=env.tarai(x=tarai.y-1, y=tarai.z, z=tarai.x),
                              z=env.tarai(x=tarai.z-1, y=tarai.x, z=tarai.y)),
-              not = tarai.z)
+              not = tarai.y)
          }
     }.tarai(x=18, y=12, z=6)""")
     return program
