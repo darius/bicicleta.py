@@ -295,6 +295,18 @@ def bench3():
     tak = make_tak()
     print timed(lambda: run(tak))
 
+itersum, = parse("""
+{env:
+ run = {summing: 
+        i=0, sum=0,
+        '()' = (summing.i == 0).if(so = summing.sum,
+                                   not = summing(i=summing.i-1,
+                                                 sum=summing.sum+(summing.i)))},
+ main = env.run(i = 40)
+}.main
+""")
+
 # bench3()
 if __name__ == '__main__':
+    print timed(lambda: run(itersum))
     print bench3()
