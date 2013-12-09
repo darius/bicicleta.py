@@ -186,7 +186,7 @@ bindings    = binding , _ bindings
 binding     = name [=] _ expr               hug
 name        = ([A-Za-z_][A-Za-z_0-9]*) _
             | '([^']*)' _
-_           = \s*
+_           = (?:\s|#.*)*
 """, **globals())
 
 # TODO: compare yacc grammar
@@ -234,7 +234,7 @@ _           = \s*
 def make_fac(n):
     fac, = parse("""
 {env: 
- fac = {fac:
+ fac = {fac:   # fac for factorial
         '()' = (fac.n == 0).if(so  = 1,
                                not = fac.n * (env.fac(n = fac.n-1)))}
 }.fac(n=%d)""" % n)
