@@ -155,12 +155,15 @@ def nameless(): return ''
 def defer_dot(name):               return Call, name
 def defer_derive(name, *bindings): return Extend, name, bindings
 def defer_funcall(*bindings):      return mk_funcall, bindings
+def defer_infix(operator, expr):   return mk_infix, operator, expr
 
 def mk_funcall(expr, bindings):
     "  foo(x=y) ==> foo{x=y}.'()'  "
     return Call(Extend(expr, nameless(), bindings), '()')
 
-# TODO: compare yacc grammar
+def mk_infix(left, operator, right):
+    "   x + y ==> x.'+'(_=y)  "
+    return mk_funcall(Call(left, operator), (('_', right),))
 
 parse = Parser(r"""
 program     = _ expr !.
@@ -173,6 +176,8 @@ affixes     = affix affixes |
 affix       = [.] name                      defer_dot
             | derive
             | \( _ bindings \) _            defer_funcall
+            | infix_op primary              defer_infix
+infix_op    = ([-+*<]|==) _
 derive      = { _ name : _ bindings } _     defer_derive
             | { _ nameless bindings } _     defer_derive
 bindings    = binding , _ bindings
@@ -184,6 +189,8 @@ name        = ([A-Za-z_][A-Za-z_0-9]*) _
 _           = \s*
 """, **globals())
 
+# TODO: compare yacc grammar
+# XXX do infix ops work like Kragen's? surely not
 # XXX backslashes in quoted names, blah lblah
 
 ## parse('x = y', rule='bindings')
@@ -208,10 +215,17 @@ _           = \s*
 ## run(adding)
 #. '138'
 
+## run("137 - 2 - 1")   # N.B. associates right to left, currently
+#. '134'
+
+## run("(136 < 137).if(so=1, not=2)")
+#. '1'
+## run("(137 < 137).if(so=1, not=2)")
+#. '2'
 ## run("137.'<' {_=137}.'()'.if(so=1, not=2)")
 #. '2'
 
-## cmping, = parse("137.'=='(_=1).if(so=42, not=168)")
+## cmping, = parse("(137 == 1).if(so=42, not=168)")
 ## repr(cmping) == repr(parse("137.'=='{_=1}.'()'.if{so=42, not=168}.'()'")[0])
 #. True
 ## run(cmping)
@@ -221,8 +235,8 @@ def make_fac(n):
     fac, = parse("""
 {env: 
  fac = {fac:
-        '()' = fac.n.'=='(_=0).if(so  = 1,
-                                  not = fac.n.'*'(_ = env.fac(n = fac.n.'-'(_=1))))}
+        '()' = (fac.n == 0).if(so  = 1,
+                               not = fac.n * (env.fac(n = fac.n-1)))}
 }.fac(n=%d)""" % n)
     return fac
 
@@ -238,10 +252,11 @@ def make_tarai():
     program, = parse("""
 {env:
  tarai = {tarai: 
-          '()' = tarai.y.'<'(_=tarai.x).if(so = env.tarai(x=env.tarai(x=tarai.x.'-'(_=1), y=tarai.y, z=tarai.z),
-                                                          y=env.tarai(x=tarai.y.'-'(_=1), y=tarai.z, z=tarai.x),
-                                                          z=env.tarai(x=tarai.z.'-'(_=1), y=tarai.x, z=tarai.y)),
-                                           not = tarai.z)
+          '()' = (tarai.y < (tarai.x)).if(
+              so = env.tarai(x=env.tarai(x=tarai.x-1, y=tarai.y, z=tarai.z),
+                             y=env.tarai(x=tarai.y-1, y=tarai.z, z=tarai.x),
+                             z=env.tarai(x=tarai.z-1, y=tarai.x, z=tarai.y)),
+              not = tarai.z)
          }
     }.tarai(x=18, y=12, z=6)""")
     return program
@@ -250,10 +265,11 @@ def make_tak():
     program, = parse("""
 {env:
  tak = {tak: 
-          '()' = tak.y.'<'(_=tak.x).if(so = env.tak(x=env.tak(x=tak.x.'-'(_=1), y=tak.y, z=tak.z),
-                                                    y=env.tak(x=tak.y.'-'(_=1), y=tak.z, z=tak.x),
-                                                    z=env.tak(x=tak.z.'-'(_=1), y=tak.x, z=tak.y)),
-                                       not = tak.z)
+          '()' = (tak.y < (tak.x)).if(
+              so = env.tak(x=env.tak(x=tak.x-1, y=tak.y, z=tak.z),
+                           y=env.tak(x=tak.y-1, y=tak.z, z=tak.x),
+                           z=env.tak(x=tak.z-1, y=tak.x, z=tak.y)),
+              not = tak.z)
          }
     }.tak(x=18, y=12, z=6)""")
     return program
