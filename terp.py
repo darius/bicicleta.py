@@ -98,16 +98,16 @@ def extend(thing, bindings):
 def Number(n):
     return {'__value__': n,
             '+':  lambda _: {'()': lambda doing:
-                             Number(n + call(doing, '_')['__value__'])},
+                             Number(n + call(doing, 'arg1')['__value__'])},
             '-':  lambda _: {'()': lambda doing:
-                             Number(n - call(doing, '_')['__value__'])},
+                             Number(n - call(doing, 'arg1')['__value__'])},
             '*':  lambda _: {'()': lambda doing:
-                             Number(n * call(doing, '_')['__value__'])},
+                             Number(n * call(doing, 'arg1')['__value__'])},
             '==': lambda _: {'()': lambda operation:
-                             Claim(n == call(operation, '_').get('__value__'))},
+                             Claim(n == call(operation, 'arg1').get('__value__'))},
             '<':  lambda _: {'()': lambda operation:
                              (lambda other: Claim(other.get('__value__') is not None
-                                                  and n < other['__value__']))(call(operation, '_'))}}
+                                                  and n < other['__value__']))(call(operation, 'arg1'))}}
 
 def Claim(value):
     assert isinstance(value, bool)
@@ -163,7 +163,7 @@ def mk_funcall(expr, bindings):
 
 def mk_infix(left, operator, right):
     "   x + y ==> x.'+'(_=y)  "
-    return mk_funcall(Call(left, operator), (('_', right),))
+    return mk_funcall(Call(left, operator), (('arg1', right),))
 
 parse = Parser(r"""
 program     = _ expr !.
@@ -209,9 +209,9 @@ _           = (?:\s|#.*)*
 ## numlit
 #. 137
 
-## adding, = parse("137.'+' {_=1}.'()'")
+## adding, = parse("137.'+' {arg1=1}.'()'")
 ## adding
-#. 137.+{: _=1}.()
+#. 137.+{: arg1=1}.()
 ## run(adding)
 #. '138'
 
@@ -222,11 +222,11 @@ _           = (?:\s|#.*)*
 #. '1'
 ## run("(137 < 137).if(so=1, not=2)")
 #. '2'
-## run("137.'<' {_=137}.'()'.if(so=1, not=2)")
+## run("137.'<' {arg1=137}.'()'.if(so=1, not=2)")
 #. '2'
 
 ## cmping, = parse("(137 == 1).if(so=42, not=168)")
-## repr(cmping) == repr(parse("137.'=='{_=1}.'()'.if{so=42, not=168}.'()'")[0])
+## repr(cmping) == repr(parse("137.'=='{arg1=1}.'()'.if{so=42, not=168}.'()'")[0])
 #. True
 ## run(cmping)
 #. '168'
@@ -242,7 +242,7 @@ def make_fac(n):
 
 fac = make_fac(4)
 ## fac
-#. @<>{env: fac=@<>{fac: ()=@fac.n.=={: _=0}.().if{: so=1, not=@fac.n.*{: _=@env.fac{: n=@fac.n.-{: _=1}.()}.()}.()}.()}}.fac{: n=4}.()
+#. @<>{env: fac=@<>{fac: ()=@fac.n.=={: arg1=0}.().if{: so=1, not=@fac.n.*{: arg1=@env.fac{: n=@fac.n.-{: arg1=1}.()}.()}.()}.()}}.fac{: n=4}.()
 ## run(fac)
 #. '24'
 
