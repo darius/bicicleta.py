@@ -312,8 +312,8 @@ itersum, = parse("""
 {env:
  run = {summing: 
         i=0, sum=0,
-        '()' = (summing.i == 0).if(so = summing.sum,  # TODO: use env.run instead?
-                                   not = summing(i=summing.i-1,
+        '()' = (summing.i == 0).if(so = summing.sum,
+                                   not = env.run(i=summing.i-1,
                                                  sum=summing.sum+(summing.i)))},
  main = env.run(i = 40)
 }.main
