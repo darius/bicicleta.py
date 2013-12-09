@@ -2,17 +2,9 @@
 Interpreter for a toy dialect of Bicicleta.
 """
 
-from peglet import Parser, hug
+import sys; sys.setrecursionlimit(2500)
 
-def ev(expr, env):
-    result = expr.eval(env)
-    if False:
-        if isinstance(expr, NumberLiteral):
-            return result
-        shown = show(result)
-        if shown != '$':
-            print expr, '-->', shown
-    return result
+from peglet import Parser, hug
 
 class VarRef(object):
     def __init__(self, name):
@@ -37,7 +29,7 @@ class Call(object):
     def __repr__(self):
         return '%s.%s' % (self.receiver, self.selector)
     def eval(self, env):
-        return call(ev(self.receiver, env), self.selector)
+        return call(self.receiver.eval(env), self.selector)
 
 class Extend(object):
     def __init__(self, base, name, bindings):
@@ -51,12 +43,12 @@ class Extend(object):
     def eval(self, env):
         return Thunk(self, env)
     def force(self, env):
-        return extend(ev(self.base, env),
+        return extend(self.base.eval(env),
                       {slot: make_slot_thunk(self.name, expr, env)
                        for slot, expr in self.bindings})
 
 def make_slot_thunk(name, expr, env):
-    return lambda rcvr: ev(expr, extend_env(env, {name: rcvr}))
+    return lambda rcvr: expr.eval(extend_env(env, {name: rcvr}))
 
 class Thunk(object): 
     def __init__(self, expr, env):
@@ -319,7 +311,47 @@ itersum, = parse("""
 }.main
 """)
 
-# bench3()
+itersum2, = parse("""
+{env:
+ outer = {outer: 
+   i=0, sum=0,
+   '()' = (outer.i == 0).if(
+       so = outer.sum,
+       not = env.outer(i=outer.i-1, sum=outer.sum + (env.inner(j=outer.i))))},
+ inner = {inner:
+   j=0, sum=0,
+   '()' = (inner.j == 0).if(
+       so = inner.sum,
+       not = env.inner(j=inner.j-1, sum=inner.sum + (inner.j)))},
+ main = env.outer(i = 20)
+}.main
+""")
+
+itersum3, = parse("""
+{env:
+ outer = {outer: 
+   i=0, sum=0,
+   '()' = (outer.i == 0).if(
+       so = outer.sum,
+       not = env.outer(i=outer.i-1, sum=outer.sum + (env.mid(i=outer.i))))},
+ mid = {mid: 
+   i=0, sum=0,
+   '()' = (mid.i == 0).if(
+       so = mid.sum,
+       not = env.mid(i=mid.i-1, sum=mid.sum + (env.inner(i=mid.i))))},
+ inner = {inner:
+   i=0, sum=0,
+   '()' = (inner.i == 0).if(
+       so = inner.sum,
+       not = env.inner(i=inner.i-1, sum=inner.sum + (inner.i)))},
+ main = env.outer(i = 40)
+}.main
+""")
+
 if __name__ == '__main__':
     print timed(lambda: run(itersum))
+    print timed(lambda: run(itersum2))
+    print timed(lambda: run(itersum3))
+    fib = make_fib(20)
+    print timed(lambda: run(fib))
     print bench3()
