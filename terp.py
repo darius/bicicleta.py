@@ -4,6 +4,16 @@ Interpreter for a toy dialect of Bicicleta.
 
 from peglet import Parser, hug
 
+def ev(expr, env):
+    result = expr.eval(env)
+    if False:
+        if isinstance(expr, NumberLiteral):
+            return result
+        shown = show(result)
+        if shown != '$':
+            print expr, '-->', shown
+    return result
+
 class VarRef(object):
     def __init__(self, name):
         self.name = name
@@ -27,7 +37,7 @@ class Call(object):
     def __repr__(self):
         return '%s.%s' % (self.receiver, self.selector)
     def eval(self, env):
-        return call(self.receiver.eval(env), self.selector)
+        return call(ev(self.receiver, env), self.selector)
 
 class Extend(object):
     def __init__(self, base, name, bindings):
@@ -41,12 +51,12 @@ class Extend(object):
     def eval(self, env):
         return Thunk(self, env)
     def force(self, env):
-        return extend(self.base.eval(env),
+        return extend(ev(self.base, env),
                       {slot: make_slot_thunk(self.name, expr, env)
                        for slot, expr in self.bindings})
 
 def make_slot_thunk(name, expr, env):
-    return lambda rcvr: expr.eval(extend_env(env, {name: rcvr}))
+    return lambda rcvr: ev(expr, extend_env(env, {name: rcvr}))
 
 class Thunk(object): 
     def __init__(self, expr, env):
@@ -56,6 +66,8 @@ class Thunk(object):
         self.forced = None
     def __repr__(self):
         return 'Thunk(%r)' % self.expr
+    def show(self):
+        return show(self.forced) if self.forced else '$'
     def force(self):
         if self.forced is None:
             self.forced = self.expr.force(self.env)
@@ -64,27 +76,38 @@ class Thunk(object):
         return self.force().get(key)
     def __getitem__(self, key):
         return self.force().__getitem__(key)
+    def __setitem__(self, key, value):
+        return self.force().__setitem__(key, value)
     def items(self):
         return self.force().items()
     def __iter__(self):
         return iter(self.force().items())
 
 def call(receiver, selector):
-    return receiver[selector](receiver)
+    what = receiver[selector]
+    if callable(what):
+        value = what(receiver)
+        receiver[selector] = value
+    else:
+        value = what
+    return value
 
 def extend(thing, bindings):
     return extend_env(thing, bindings)
 
 def Number(n):
     return {'__value__': n,
-            '+': lambda _: {'()': lambda doing:
-                            Number(n + call(doing, '_')['__value__'])},
-            '-': lambda _: {'()': lambda doing:
-                            Number(n - call(doing, '_')['__value__'])},
-            '*': lambda _: {'()': lambda doing:
-                            Number(n * call(doing, '_')['__value__'])},
+            '+':  lambda _: {'()': lambda doing:
+                             Number(n + call(doing, '_')['__value__'])},
+            '-':  lambda _: {'()': lambda doing:
+                             Number(n - call(doing, '_')['__value__'])},
+            '*':  lambda _: {'()': lambda doing:
+                             Number(n * call(doing, '_')['__value__'])},
             '==': lambda _: {'()': lambda operation:
-                             Claim(n == call(operation, '_').get('__value__'))}}
+                             Claim(n == call(operation, '_').get('__value__'))},
+            '<':  lambda _: {'()': lambda operation:
+                             (lambda other: Claim(other.get('__value__') is not None
+                                                  and n < other['__value__']))(call(operation, '_'))}}
 
 def Claim(value):
     assert isinstance(value, bool)
@@ -101,6 +124,8 @@ def extend_env(env, bindings):
 initial_env = {'<>': {}}
 
 def show(obj):
+    if isinstance(obj, Thunk):
+        return obj.show()
     value = obj.get('__value__')
     if value is not None:
         return str(value)
@@ -183,6 +208,9 @@ _           = \s*
 ## run(adding)
 #. '138'
 
+## run("137.'<' {_=137}.'()'.if(so=1, not=2)")
+#. '2'
+
 ## cmping, = parse("137.'=='(_=1).if(so=42, not=168)")
 ## repr(cmping) == repr(parse("137.'=='{_=1}.'()'.if{so=42, not=168}.'()'")[0])
 #. True
@@ -204,6 +232,32 @@ fac = make_fac(4)
 ## run(fac)
 #. '24'
 
+def make_tarai():
+    # TARAI is like TAK, but it's much faster with lazy evaluation.
+    # It was Takeuchi's original function.
+    program, = parse("""
+{env:
+ tarai = {tarai: 
+          '()' = tarai.y.'<'(_=tarai.x).if(so = env.tarai(x=env.tarai(x=tarai.x.'-'(_=1), y=tarai.y, z=tarai.z),
+                                                          y=env.tarai(x=tarai.y.'-'(_=1), y=tarai.z, z=tarai.x),
+                                                          z=env.tarai(x=tarai.z.'-'(_=1), y=tarai.x, z=tarai.y)),
+                                           not = tarai.z)
+         }
+    }.tarai(x=18, y=12, z=6)""")
+    return program
+
+def make_tak():
+    program, = parse("""
+{env:
+ tak = {tak: 
+          '()' = tak.y.'<'(_=tak.x).if(so = env.tak(x=env.tak(x=tak.x.'-'(_=1), y=tak.y, z=tak.z),
+                                                    y=env.tak(x=tak.y.'-'(_=1), y=tak.z, z=tak.x),
+                                                    z=env.tak(x=tak.z.'-'(_=1), y=tak.x, z=tak.y)),
+                                       not = tak.z)
+         }
+    }.tak(x=18, y=12, z=6)""")
+    return program
+
 def timed(f):
     import time
     start = time.clock()
@@ -216,3 +270,15 @@ def bench(bound=15):
         fac = make_fac(n)
         seconds, result = timed(lambda: fac.eval(initial_env)['__value__'])
         print '%5.3g  %3d %13d' % (seconds, n, result)
+
+def bench2():
+    tarai = make_tarai()
+    print timed(lambda: run(tarai))
+
+def bench3():
+    tak = make_tak()
+    print timed(lambda: run(tak))
+
+# bench3()
+if __name__ == '__main__':
+    print bench3()
