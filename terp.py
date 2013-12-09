@@ -246,6 +246,19 @@ fac = make_fac(4)
 ## run(fac)
 #. '24'
 
+def make_fib(n):
+    fib, = parse("""
+{env:
+ fib = {fib:
+        '()' = (fib.n < 2).if(so = 1,
+                              not = env.fib(n=fib.n-1) + (env.fib(n=fib.n-2)))}
+}.fib(n=%d)
+    """ % n)
+    return fib
+
+## run(make_fib(5))
+#. '8'
+
 def make_tarai():
     # TARAI is like TAK, but it's much faster with lazy evaluation.
     # It was Takeuchi's original function.
@@ -299,7 +312,7 @@ itersum, = parse("""
 {env:
  run = {summing: 
         i=0, sum=0,
-        '()' = (summing.i == 0).if(so = summing.sum,
+        '()' = (summing.i == 0).if(so = summing.sum,  # TODO: use env.run instead?
                                    not = summing(i=summing.i-1,
                                                  sum=summing.sum+(summing.i)))},
  main = env.run(i = 40)
