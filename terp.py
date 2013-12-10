@@ -127,22 +127,13 @@ def show(obj):
 def run(program):
     if isinstance(program, str):
         program, = parse(program)
-    result = program.eval(initial_env)
-    return show(result)
-
-def attach_affixes(primary, *affixes):
-    expr = primary
-    for affix in affixes:
-        expr = attach(expr, affix)
-    return expr
-
-def attach(expr, affix): return affix[0](expr, *affix[1:])
-
-def mk_int(wtf):
-    return NumberLiteral(int(wtf))
+    return show(program.eval(initial_env))
 
 def empty(): return VarRef('<>')
 def nameless(): return ''
+
+def attach_all(expr, *affixes):    return reduce(attach, affixes, expr)
+def attach(expr, affix):           return affix[0](expr, *affix[1:])
 
 def defer_dot(name):               return Call, name
 def defer_derive(name, *bindings): return Extend, name, bindings
@@ -159,11 +150,12 @@ def mk_infix(left, operator, right):
 
 parse = Parser(r"""
 program     = _ expr !.
-expr        = factor infixes                attach_affixes
-factor      = primary affixes               attach_affixes
+expr        = factor infixes                attach_all
+factor      = primary affixes               attach_all
 
 primary     = name                          VarRef
-            | (\d+) _                       mk_int
+            | (\d*\.\d+) _                  float NumberLiteral
+            | (\d+) _                       int   NumberLiteral
             | \( _ expr \) _
             | empty derive                  attach
 
@@ -187,7 +179,7 @@ lone_eq     = [=] !opchars
 name        = ([A-Za-z_][A-Za-z_0-9]*) _
             | '([^']*)' _
 _           = (?:\s|#.*)*
-""", **globals())
+""", int=int, float=float, **globals())
 
 # XXX backslashes in quoted names, blah lblah
 
@@ -213,8 +205,8 @@ _           = (?:\s|#.*)*
 ## run(adding)
 #. '138'
 
-## run("137 - 2 - 1")   # N.B. associates right to left, currently
-#. '134'
+## run("137.5 - 2 - 1")   # N.B. associates right to left, currently
+#. '134.5'
 
 ## run("(136 < 137).if(so=1, not=2)")
 #. '1'
