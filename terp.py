@@ -161,16 +161,11 @@ parse = Parser(r"""
 program     = _ expr !.
 expr        = factor infixes                attach_affixes
 factor      = primary affixes               attach_affixes
+
 primary     = name                          VarRef
             | (\d+) _                       mk_int
             | \( _ expr \) _
             | empty derive                  attach
-
-infixes     = infix infixes | 
-infix       = infix_op factor               defer_infix
-infix_op    = !lone_eq opchars _
-opchars     = ([-~`!@$%^&*+<>?/|\\=]+)
-lone_eq     = [=] !opchars
 
 affixes     = affix affixes | 
 affix       = [.] name                      defer_dot
@@ -182,6 +177,12 @@ bindings    = binding , _ bindings
             | binding
             | 
 binding     = name [=] _ expr               hug
+
+infixes     = infix infixes | 
+infix       = infix_op factor               defer_infix
+infix_op    = !lone_eq opchars _
+opchars     = ([-~`!@$%^&*+<>?/|\\=]+)
+lone_eq     = [=] !opchars
 
 name        = ([A-Za-z_][A-Za-z_0-9]*) _
             | '([^']*)' _
