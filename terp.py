@@ -168,7 +168,9 @@ primary     = name                          VarRef
 
 infixes     = infix infixes | 
 infix       = infix_op factor               defer_infix
-infix_op    = ([-+*<]|==) _
+infix_op    = !lone_eq opchars _
+opchars     = ([-~`!@$%^&*+<>?/|\\=]+)
+lone_eq     = [=] !opchars
 
 affixes     = affix affixes | 
 affix       = [.] name                      defer_dot
@@ -186,12 +188,10 @@ name        = ([A-Za-z_][A-Za-z_0-9]*) _
 _           = (?:\s|#.*)*
 """, **globals())
 
-# TODO: compare yacc grammar
-# XXX do infix ops work like Kragen's? surely not
 # XXX backslashes in quoted names, blah lblah
 
-## parse('x = y', rule='bindings')
-#. (('x', @y),)
+## parse("x ++ y{a=b} <*> z.foo")
+#. (@x.++{: arg1=@y{: a=@b}}.().<*>{: arg1=@z.foo}.(),)
 
 ## wtf, = parse("{x=42, y=55}.x")
 ## wtf
