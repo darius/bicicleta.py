@@ -279,6 +279,16 @@ def make_tak():
     }.tak(x=18, y=12, z=6)""")
     return program
 
+test_extend, = parse("""
+    {main:
+     three = {x = 3},
+     four = main.three{x=4},
+     seven = main.three.x + (main.four.x)
+    }.seven
+""")
+## run(test_extend)
+#. '7'
+
 def timed(f):
     import time
     start = time.clock()
