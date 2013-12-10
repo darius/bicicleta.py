@@ -159,23 +159,28 @@ def mk_infix(left, operator, right):
 
 parse = Parser(r"""
 program     = _ expr !.
-expr        = primary affixes               attach_affixes
+expr        = factor infixes                attach_affixes
+factor      = primary affixes               attach_affixes
 primary     = name                          VarRef
             | (\d+) _                       mk_int
             | \( _ expr \) _
             | empty derive                  attach
+
+infixes     = infix infixes | 
+infix       = infix_op factor               defer_infix
+infix_op    = ([-+*<]|==) _
+
 affixes     = affix affixes | 
 affix       = [.] name                      defer_dot
             | derive
             | \( _ bindings \) _            defer_funcall
-            | infix_op primary              defer_infix
-infix_op    = ([-+*<]|==) _
 derive      = { _ name : _ bindings } _     defer_derive
             | { _ nameless bindings } _     defer_derive
 bindings    = binding , _ bindings
             | binding
             | 
 binding     = name [=] _ expr               hug
+
 name        = ([A-Za-z_][A-Za-z_0-9]*) _
             | '([^']*)' _
 _           = (?:\s|#.*)*
@@ -228,7 +233,7 @@ def make_fac(n):
 {env: 
  fac = {fac:   # fac for factorial
         '()' = (fac.n == 0).if(so  = 1,
-                               not = fac.n * (env.fac(n = fac.n-1)))}
+                               not = fac.n * env.fac(n = fac.n-1))}
 }.fac(n=%d)""" % n)
     return fac
 
@@ -243,7 +248,7 @@ def make_fib(n):
 {env:
  fib = {fib:
         '()' = (fib.n < 2).if(so = 1,
-                              not = env.fib(n=fib.n-1) + (env.fib(n=fib.n-2)))}
+                              not = env.fib(n=fib.n-1) + env.fib(n=fib.n-2))}
 }.fib(n=%d)
     """ % n)
     return fib
@@ -283,7 +288,7 @@ test_extend, = parse("""
     {main:
      three = {x = 3},
      four = main.three{x=4},
-     seven = main.three.x + (main.four.x)
+     seven = main.three.x + main.four.x
     }.seven
 """)
 ## run(test_extend)
@@ -316,7 +321,7 @@ itersum, = parse("""
         i=0, sum=0,
         '()' = (summing.i == 0).if(so = summing.sum,
                                    not = env.run(i=summing.i-1,
-                                                 sum=summing.sum+(summing.i)))},
+                                                 sum=summing.sum+summing.i))},
  main = env.run(i = 40)
 }.main
 """)
@@ -327,12 +332,12 @@ itersum2, = parse("""
    i=0, sum=0,
    '()' = (outer.i == 0).if(
        so = outer.sum,
-       not = env.outer(i=outer.i-1, sum=outer.sum + (env.inner(j=outer.i))))},
+       not = env.outer(i=outer.i-1, sum=outer.sum + env.inner(j=outer.i)))},
  inner = {inner:
    j=0, sum=0,
    '()' = (inner.j == 0).if(
        so = inner.sum,
-       not = env.inner(j=inner.j-1, sum=inner.sum + (inner.j)))},
+       not = env.inner(j=inner.j-1, sum=inner.sum + inner.j))},
  main = env.outer(i = 20)
 }.main
 """)
@@ -343,17 +348,17 @@ itersum3, = parse("""
    i=0, sum=0,
    '()' = (outer.i == 0).if(
        so = outer.sum,
-       not = env.outer(i=outer.i-1, sum=outer.sum + (env.mid(i=outer.i))))},
+       not = env.outer(i=outer.i-1, sum=outer.sum + env.mid(i=outer.i)))},
  mid = {mid: 
    i=0, sum=0,
    '()' = (mid.i == 0).if(
        so = mid.sum,
-       not = env.mid(i=mid.i-1, sum=mid.sum + (env.inner(i=mid.i))))},
+       not = env.mid(i=mid.i-1, sum=mid.sum + env.inner(i=mid.i)))},
  inner = {inner:
    i=0, sum=0,
    '()' = (inner.i == 0).if(
        so = inner.sum,
-       not = env.inner(i=inner.i-1, sum=inner.sum + (inner.i)))},
+       not = env.inner(i=inner.i-1, sum=inner.sum + inner.i))},
  main = env.outer(i = 40)
 }.main
 """)
