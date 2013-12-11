@@ -11,7 +11,7 @@ from peglet import Parser, hug
 # Top level
 
 def run(program):
-    if isinstance(program, str):
+    if isinstance(program, (str, unicode)):
         program, = parse(program)
     return show(program.eval(initial_env))
 
