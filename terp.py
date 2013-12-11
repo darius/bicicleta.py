@@ -14,13 +14,13 @@ class VarRef(object):
     def eval(self, env):
         return env[self.name]
 
-class NumberLiteral(object):
+class Literal(object):
     def __init__(self, value):
         self.value = value
     def __repr__(self):
-        return str(self.value)
+        return show(self.value)
     def eval(self, env):
-        return Number(self.value)
+        return self.value
 
 class Call(object):
     def __init__(self, receiver, selector):
@@ -97,9 +97,17 @@ def Number(n):
                              Number(n * call(doing, 'arg1')['__value__'])},
             '==': lambda _: {'()': lambda operation:
                              Claim(n == call(operation, 'arg1').get('__value__'))},
-            '<':  lambda _: {'()': lambda operation:
+            '<':  lambda _: {'()': lambda operation: # XXX should cmp of num and string be an error?
                              (lambda other: Claim(other.get('__value__') is not None
                                                   and n < other['__value__']))(call(operation, 'arg1'))}}
+
+def String(s):
+    return {'__value__': s,
+            '==': lambda _: {'()': lambda operation:
+                             Claim(s == call(operation, 'arg1').get('__value__'))},
+            '<':  lambda _: {'()': lambda operation:
+                             (lambda other: Claim(other.get('__value__') is not None
+                                                  and s < other['__value__']))(call(operation, 'arg1'))}}
 
 def Claim(value):
     assert isinstance(value, bool)
@@ -120,7 +128,7 @@ def show(obj):
         return obj.show()
     value = obj.get('__value__')
     if value is not None:
-        return str(value)
+        return repr(value)
     else:
         return '{%s}' % ', '.join(name for name, call_thunk in obj.items())
 
@@ -154,8 +162,9 @@ expr        = factor infixes                attach_all
 factor      = primary affixes               attach_all
 
 primary     = name                          VarRef
-            | (\d*\.\d+) _                  float NumberLiteral
-            | (\d+) _                       int   NumberLiteral
+            | (\d*\.\d+) _                  float Number Literal
+            | (\d+) _                       int   Number Literal
+            | "([^"\\]*)" _                 String Literal
             | \( _ expr \) _
             | empty derive                  attach
 
@@ -178,11 +187,11 @@ opchars     = ([-~`!@$%^&*+<>?/|\\=]+)
 lone_eq     = [=] !opchars
 
 name        = ([A-Za-z_][A-Za-z_0-9]*) _
-            | '([^']*)' _
+            | '([^'\\]*)' _
 _           = (?:\s|#.*)*
 """, int=int, float=float, **globals())
 
-# XXX backslashes in quoted names, blah lblah
+# TODO: support backslashes in '' and ""
 
 ## parse("x ++ y{a=b} <*> z.foo")
 #. (@x.++{: arg1=@y{: a=@b}}.().<*>{: arg1=@z.foo}.(),)
@@ -221,6 +230,13 @@ _           = (?:\s|#.*)*
 #. True
 ## run(cmping)
 #. '168'
+
+## run('"howdy"')
+#. "'howdy'"
+## run('("hello" == "aloha").if(so=42, not=168)')
+#. '168'
+## run('("hello" == "hello").if(so=42, not=168)')
+#. '42'
 
 def make_fac(n):
     fac, = parse("""
