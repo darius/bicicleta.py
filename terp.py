@@ -164,7 +164,7 @@ factor      = primary affixes               attach_all
 primary     = name                          VarRef
             | (\d*\.\d+) _                  float Number Literal
             | (\d+) _                       int   Number Literal
-            | "([^"\\]*)" _                 String Literal
+            | "([^"\\]*)" _                       String Literal
             | \( _ expr \) _
             | empty derive                  attach
 
