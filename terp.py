@@ -1,10 +1,31 @@
 """
-Interpreter for a toy dialect of Bicicleta.
+Interpreter for a dialect of Bicicleta. I changed the 'if' syntax and
+left out some things.
 """
 
 import sys; sys.setrecursionlimit(2500)
 
 from peglet import Parser, hug
+
+
+# Top level
+
+def run(program):
+    if isinstance(program, str):
+        program, = parse(program)
+    return show(program.eval(initial_env))
+
+def show(obj):
+    if isinstance(obj, Thunk):
+        return obj.show()
+    value = obj.get('__value__')
+    if value is not None:
+        return repr(value)
+    else:
+        return '{%s}' % ', '.join(name for name, call_thunk in obj.items())
+
+
+# Expressions, environments, and objects
 
 class VarRef(object):
     def __init__(self, name):
@@ -82,6 +103,16 @@ def call(receiver, selector):
 def extend(thing, bindings):
     return extend_env(thing, bindings)
 
+def extend_env(env, bindings):
+    result = dict(env)
+    result.update(bindings)
+    return result
+
+initial_env = {'<>': {}}
+
+
+# Primitive objects
+
 def Number(n):
     return {'__value__': n,
             '+':  lambda _: {'()': lambda doing:
@@ -111,47 +142,10 @@ def Claim(value):
 true_claim  = {'if': lambda _: {'()': lambda picking: call(picking, 'so')}}
 false_claim = {'if': lambda _: {'()': lambda picking: call(picking, 'not')}}
 
-def extend_env(env, bindings):
-    result = dict(env)
-    result.update(bindings)
-    return result
 
-initial_env = {'<>': {}}
+# Parser
 
-def show(obj):
-    if isinstance(obj, Thunk):
-        return obj.show()
-    value = obj.get('__value__')
-    if value is not None:
-        return repr(value)
-    else:
-        return '{%s}' % ', '.join(name for name, call_thunk in obj.items())
-
-def run(program):
-    if isinstance(program, str):
-        program, = parse(program)
-    return show(program.eval(initial_env))
-
-def empty(): return VarRef('<>')
-def nameless(): return ''
-
-def attach_all(expr, *affixes):    return reduce(attach, affixes, expr)
-def attach(expr, affix):           return affix[0](expr, *affix[1:])
-
-def defer_dot(name):               return Call, name
-def defer_derive(name, *bindings): return Extend, name, bindings
-def defer_funcall(*bindings):      return mk_funcall, bindings
-def defer_infix(operator, expr):   return mk_infix, operator, expr
-
-def mk_funcall(expr, bindings):
-    "  foo(x=y) ==> foo{x=y}.'()'  "
-    return Call(Extend(expr, nameless(), bindings), '()')
-
-def mk_infix(left, operator, right):
-    "   x + y ==> x.'+'(_=y)  "
-    return mk_funcall(Call(left, operator), (('arg1', right),))
-
-parse = Parser(r"""
+program_grammar = r"""
 program     = _ expr !.
 expr        = factor infixes                attach_all
 factor      = primary affixes               attach_all
@@ -184,13 +178,36 @@ lone_eq     = [=] !opchars
 name        = ([A-Za-z_][A-Za-z_0-9]*) _
             | '([^'\\]*)' _
 _           = (?:\s|#.*)*
-""", int=int, float=float, **globals())
-
+"""
 # TODO: support backslashes in '' and ""
 # TODO: comma optionally a newline instead
 # TODO: foo(name: x=y) [if actually wanted]
 # TODO: foo[]
 # TODO: positional arguments
+
+def empty(): return VarRef('<>')
+def nameless(): return ''
+
+def attach_all(expr, *affixes):    return reduce(attach, affixes, expr)
+def attach(expr, affix):           return affix[0](expr, *affix[1:])
+
+def defer_dot(name):               return Call, name
+def defer_derive(name, *bindings): return Extend, name, bindings
+def defer_funcall(*bindings):      return mk_funcall, bindings
+def defer_infix(operator, expr):   return mk_infix, operator, expr
+
+def mk_funcall(expr, bindings):
+    "  foo(x=y) ==> foo{x=y}.'()'  "
+    return Call(Extend(expr, nameless(), bindings), '()')
+
+def mk_infix(left, operator, right):
+    "   x + y ==> x.'+'(_=y)  "
+    return mk_funcall(Call(left, operator), (('arg1', right),))
+
+parse = Parser(program_grammar, int=int, float=float, **globals())
+
+
+# Crude tests and benchmarks
 
 ## parse("x ++ y{a=b} <*> z.foo")
 #. (@x.++{: arg1=@y{: a=@b}}.().<*>{: arg1=@z.foo}.(),)
