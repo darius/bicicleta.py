@@ -192,6 +192,10 @@ _           = (?:\s|#.*)*
 """, int=int, float=float, **globals())
 
 # TODO: support backslashes in '' and ""
+# TODO: comma optionally a newline instead
+# TODO: foo(name: x=y) [if actually wanted]
+# TODO: foo[]
+# TODO: positional arguments
 
 ## parse("x ++ y{a=b} <*> z.foo")
 #. (@x.++{: arg1=@y{: a=@b}}.().<*>{: arg1=@z.foo}.(),)
