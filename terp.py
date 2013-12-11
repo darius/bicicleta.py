@@ -64,16 +64,11 @@ class Thunk(object):
         if self.forced is None:
             self.forced = self.expr.force(self.env)
         return self.forced
-    def get(self, key):
-        return self.force().get(key)
-    def __getitem__(self, key):
-        return self.force().__getitem__(key)
-    def __setitem__(self, key, value):
-        return self.force().__setitem__(key, value)
-    def items(self):
-        return self.force().items()
-    def __iter__(self):
-        return iter(self.force().items())
+    def get(self, key):              return self.force().get(key)
+    def __getitem__(self, key):      return self.force().__getitem__(key)
+    def __setitem__(self, key, val): return self.force().__setitem__(key, val)
+    def items(self):                 return self.force().items()
+    def __iter__(self):              return iter(self.force().items())
 
 def call(receiver, selector):
     what = receiver[selector]
