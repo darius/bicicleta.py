@@ -275,13 +275,14 @@ parse = Parser(program_grammar, int=int, float=float, **globals())
 
 test_extend, = parse("""
     {main:
-     three = {x = 3},
+     three = {me: x = 3, xx = me.x + me.x},
      four = main.three{x=4},
-     seven = main.three.x + main.four.x
-    }.seven
+     forteen = main.three.xx + main.four.xx
+    }.forteen
 """)
+# XXX wrong answer
 ## run(test_extend)
-#. '7'
+#. '12'
 
 ## run('"hey {x} and {why}" % {x=84/2, why=136+1}')
 #. "'hey 42.0 and 137'"
