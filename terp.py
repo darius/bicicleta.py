@@ -16,12 +16,12 @@ def run(program):
         program, = parse(program)
     return show(program.eval(initial_env))
 
-def show(obj):
+def show(obj, prim=repr):
     if isinstance(obj, Thunk):
         return obj.show()
     value = obj.get('__value__')
     if value is not None:
-        return repr(value)
+        return prim(value)
     else:
         return '{%s}' % ', '.join(name for name, call_thunk in obj.items())
 
@@ -87,8 +87,8 @@ class Thunk(object):
         self.forced = None
     def __repr__(self):
         return 'Thunk(%r)' % self.expr
-    def show(self):
-        return show(self.forced) if self.forced else '$'
+    def show(self, prim=repr):
+        return show(self.forced, prim) if self.forced else '$'
     def force(self):
         if self.forced is None:
             self.forced = self.expr.force(self.env)
@@ -149,7 +149,7 @@ def String(s):
 
 def string_substitute(template, obj):
     import re
-    return re.sub(r'{(.*?)}', lambda m: show(call(obj, m.group(1))),
+    return re.sub(r'{(.*?)}', lambda m: show(call(obj, m.group(1)), str),
                   template)
 
 def Claim(value):
@@ -197,10 +197,10 @@ name        = ([A-Za-z_][A-Za-z_0-9]*) _
             | '([^'\\]*)' _
 _           = (?:\s|#.*)*
 """
-# TODO: support backslashes in '' and ""
 # TODO: comma optionally a newline instead
-# TODO: foo(name: x=y) [if actually wanted]
 # TODO: positional arguments
+# TODO: support backslashes in '' and ""
+# TODO: foo(name: x=y) [if actually wanted]
 
 def empty(): return VarRef('<>')
 def nameless(): return ''
