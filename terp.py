@@ -341,33 +341,6 @@ def bench3():
     tak = make_tak()
     print timed(lambda: run(tak))
 
-itersum, = parse("""
-{env:
- run = {summing: 
-        i=0, sum=0,
-        '()' = (summing.i == 0).if(so = summing.sum,
-                                   not = env.run(i=summing.i-1,
-                                                 sum=summing.sum+summing.i))},
- main = env.run(i = 40)
-}.main
-""")
-
-itersum2, = parse("""
-{env:
- outer = {outer: 
-   i=0, sum=0,
-   '()' = (outer.i == 0).if(
-       so = outer.sum,
-       not = env.outer(i=outer.i-1, sum=outer.sum + env.inner(j=outer.i)))},
- inner = {inner:
-   j=0, sum=0,
-   '()' = (inner.j == 0).if(
-       so = inner.sum,
-       not = env.inner(j=inner.j-1, sum=inner.sum + inner.j))},
- main = env.outer(i = 20)
-}.main
-""")
-
 itersum3, = parse("""
 {env:
  outer = {outer: 
@@ -390,8 +363,6 @@ itersum3, = parse("""
 """)
 
 if __name__ == '__main__':
-    print timed(lambda: run(itersum))
-    print timed(lambda: run(itersum2))
     print timed(lambda: run(itersum3))
     fib = make_fib(20)
     print timed(lambda: run(fib))
