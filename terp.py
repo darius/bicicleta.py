@@ -254,6 +254,16 @@ parse = Parser(program_grammar, int=int, float=float, **globals())
 ## run('("hello" == "hello").if(so=42, not=168)')
 #. '42'
 
+test_extend, = parse("""
+    {main:
+     three = {x = 3},
+     four = main.three{x=4},
+     seven = main.three.x + main.four.x
+    }.seven
+""")
+## run(test_extend)
+#. '7'
+
 def make_fac(n):
     fac, = parse("""
 {env: 
@@ -282,6 +292,19 @@ def make_fib(n):
 ## run(make_fib(5))
 #. '8'
 
+def make_tak():
+    program, = parse("""
+{env:
+ tak = {tak: 
+          '()' = (tak.y < (tak.x)).if(
+              so = env.tak(x=env.tak(x=tak.x-1, y=tak.y, z=tak.z),
+                           y=env.tak(x=tak.y-1, y=tak.z, z=tak.x),
+                           z=env.tak(x=tak.z-1, y=tak.x, z=tak.y)),
+              not = tak.z)
+         }
+    }.tak(x=18, y=12, z=6)""")
+    return program
+
 def make_tarai():
     # TARAI is like TAK, but it's much faster with lazy evaluation.
     # It was Takeuchi's original function.
@@ -296,50 +319,6 @@ def make_tarai():
          }
     }.tarai(x=18, y=12, z=6)""")
     return program
-
-def make_tak():
-    program, = parse("""
-{env:
- tak = {tak: 
-          '()' = (tak.y < (tak.x)).if(
-              so = env.tak(x=env.tak(x=tak.x-1, y=tak.y, z=tak.z),
-                           y=env.tak(x=tak.y-1, y=tak.z, z=tak.x),
-                           z=env.tak(x=tak.z-1, y=tak.x, z=tak.y)),
-              not = tak.z)
-         }
-    }.tak(x=18, y=12, z=6)""")
-    return program
-
-test_extend, = parse("""
-    {main:
-     three = {x = 3},
-     four = main.three{x=4},
-     seven = main.three.x + main.four.x
-    }.seven
-""")
-## run(test_extend)
-#. '7'
-
-def timed(f):
-    import time
-    start = time.clock()
-    result = f()
-    return time.clock() - start, result
-
-def bench(bound=15):
-    print '%5s  %3s %13s' % ('Secs', 'N', 'fac N')
-    for n in range(bound):
-        fac = make_fac(n)
-        seconds, result = timed(lambda: fac.eval(initial_env)['__value__'])
-        print '%5.3g  %3d %13d' % (seconds, n, result)
-
-def bench2():
-    tarai = make_tarai()
-    print timed(lambda: run(tarai))
-
-def bench3():
-    tak = make_tak()
-    print timed(lambda: run(tak))
 
 itersum3, = parse("""
 {env:
@@ -362,8 +341,23 @@ itersum3, = parse("""
 }.main
 """)
 
+def timed(f):
+    import time
+    start = time.clock()
+    result = f()
+    return time.clock() - start, result
+
+def bench2():
+    tarai = make_tarai()
+    print timed(lambda: run(tarai))
+
+def bench3():
+    tak = make_tak()
+    print timed(lambda: run(tak))
+
 if __name__ == '__main__':
+    bench2()
     print timed(lambda: run(itersum3))
     fib = make_fib(20)
     print timed(lambda: run(fib))
-    print bench3()
+    bench3()
