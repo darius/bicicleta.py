@@ -128,6 +128,8 @@ def Number(n):
                              Number(n * call(doing, 'arg1')['__value__'])},
             '/':  lambda _: {'()': lambda doing:
                              Number(n / call(doing, 'arg1')['__value__'])},
+            '**': lambda _: {'()': lambda doing:
+                             Number(n ** call(doing, 'arg1')['__value__'])},
             '==': lambda _: {'()': lambda operation:
                              Claim(n == call(operation, 'arg1').get('__value__'))},
             '<':  lambda _: {'()': lambda operation: # XXX should cmp of num and string be an error?
@@ -283,6 +285,8 @@ test_extend, = parse("""
 
 ## run('"hey {x} and {why}" % {x=84/2, why=136+1}')
 #. "'hey 42.0 and 137'"
+## run("5**3")
+#. '125'
 
 def make_fac(n):
     fac, = parse("""
