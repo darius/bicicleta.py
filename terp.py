@@ -62,14 +62,21 @@ class Extend(object):
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
     def eval(self, env):
+        # If you comment out the following two lines, speed on our
+        # benchmarks almost doubles. Does any real code profit from
+        # Thunk?
         return Thunk(self, env)
     def force(self, env):
         return extend(self.base.eval(env),
                       {slot: make_slot_thunk(self.name, expr, env)
                        for slot, expr in self.bindings})
 
-def make_slot_thunk(name, expr, env):
-    return lambda rcvr: expr.eval(extend_env(env, {name: rcvr}))
+def make_slot_thunk(slot, expr, env):
+    def thunk(rcvr):
+        new_env = dict(env)
+        new_env[slot] = rcvr
+        return expr.eval(new_env)
+    return thunk
 
 class Thunk(object): 
     def __init__(self, expr, env):
@@ -100,11 +107,8 @@ def call(receiver, selector):
         value = what
     return value
 
-def extend(thing, bindings):
-    return extend_env(thing, bindings)
-
-def extend_env(env, bindings):
-    result = dict(env)
+def extend(dictlike, bindings):
+    result = dict(dictlike)
     result.update(bindings)
     return result
 
