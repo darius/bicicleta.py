@@ -161,6 +161,7 @@ affixes     = affix affixes |
 affix       = [.] name                      defer_dot
             | derive
             | \( _ bindings \) _            defer_funcall
+            | \[ _ bindings \] _            defer_squarecall
 
 derive      = { _ name : _ bindings } _     defer_derive
             | { _ nameless bindings } _     defer_derive
@@ -182,7 +183,6 @@ _           = (?:\s|#.*)*
 # TODO: support backslashes in '' and ""
 # TODO: comma optionally a newline instead
 # TODO: foo(name: x=y) [if actually wanted]
-# TODO: foo[]
 # TODO: positional arguments
 
 def empty(): return VarRef('<>')
@@ -193,16 +193,17 @@ def attach(expr, affix):           return affix[0](expr, *affix[1:])
 
 def defer_dot(name):               return Call, name
 def defer_derive(name, *bindings): return Extend, name, bindings
-def defer_funcall(*bindings):      return mk_funcall, bindings
+def defer_funcall(*bindings):      return mk_funcall, '()', bindings
+def defer_squarecall(*bindings):   return mk_funcall, '[]', bindings
 def defer_infix(operator, expr):   return mk_infix, operator, expr
 
-def mk_funcall(expr, bindings):
+def mk_funcall(expr, selector, bindings):
     "  foo(x=y) ==> foo{x=y}.'()'  "
-    return Call(Extend(expr, nameless(), bindings), '()')
+    return Call(Extend(expr, nameless(), bindings), selector)
 
 def mk_infix(left, operator, right):
     "   x + y ==> x.'+'(_=y)  "
-    return mk_funcall(Call(left, operator), (('arg1', right),))
+    return mk_funcall(Call(left, operator), '()', (('arg1', right),))
 
 parse = Parser(program_grammar, int=int, float=float, **globals())
 
@@ -221,9 +222,10 @@ parse = Parser(program_grammar, int=int, float=float, **globals())
 ## parse("{y=42, x=55, z=137}.x")[0].eval(initial_env)['__value__']
 #. 55
 
-## numlit, = parse("137")
-## numlit
+## parse("137")[0]
 #. 137
+## parse("137[yo=dude]")[0]
+#. 137{: yo=@dude}.[]
 
 ## adding, = parse("137.'+' {arg1=1}.'()'")
 ## adding
