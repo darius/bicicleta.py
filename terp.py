@@ -277,8 +277,8 @@ test_extend, = parse("""
     {main:
      three = {me: x = 3, xx = me.x + me.x},
      four = main.three{x=4},
-     forteen = main.three.xx + main.four.xx
-    }.forteen
+     result = main.three.xx + main.four.xx
+    }.result
 """)
 # XXX wrong answer
 ## run(test_extend)
