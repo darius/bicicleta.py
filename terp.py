@@ -139,7 +139,7 @@ class Extend(object):
     def __init__(self, base, name, bindings):
         self.base = base
         self.name = name
-        self.bindings = list(bindings)
+        self.bindings = bindings
     def __repr__(self):
         return '%s{%s: %s}' % (self.base, self.name,
                                ', '.join('%s=%s' % binding
