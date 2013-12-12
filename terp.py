@@ -137,7 +137,15 @@ def String(s):
                              Claim(s == call(operation, 'arg1').get('__value__'))},
             '<':  lambda _: {'()': lambda operation:
                              (lambda other: Claim(other.get('__value__') is not None
-                                                  and s < other['__value__']))(call(operation, 'arg1'))}}
+                                                  and s < other['__value__']))(call(operation, 'arg1'))},
+            '%':  lambda _: {'()': lambda operation:
+                             String(string_substitute(s, call(operation, 'arg1')))}
+        }
+
+def string_substitute(template, obj):
+    import re
+    return re.sub(r'{(.*?)}', lambda m: show(call(obj, m.group(1))),
+                  template)
 
 def Claim(value):
     assert isinstance(value, bool)
@@ -269,6 +277,9 @@ test_extend, = parse("""
 """)
 ## run(test_extend)
 #. '7'
+
+## run('"hey {x} and {why}" % {x=42, why=136+1}')
+#. "'hey 42 and 137'"
 
 def make_fac(n):
     fac, = parse("""
