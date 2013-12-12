@@ -4,7 +4,7 @@ left out some things.
 """
 
 from __future__ import division
-import sys; sys.setrecursionlimit(2500)
+import sys; sys.setrecursionlimit(7500)
 
 from peglet import Parser, hug
 
@@ -14,16 +14,7 @@ from peglet import Parser, hug
 def run(program):
     if isinstance(program, (str, unicode)):
         program, = parse(program)
-    return show(program.eval(initial_env))
-
-def show(obj, prim=repr):
-    if isinstance(obj, Thunk):
-        return obj.show()
-    value = obj.get('__value__')
-    if value is not None:
-        return prim(value)
-    else:
-        return '{%s}' % ', '.join(name for name, call_thunk in obj.items())
+    return program.eval(initial_env).show()
 
 
 # Expressions, environments, and objects
@@ -40,7 +31,7 @@ class Literal(object):
     def __init__(self, value):
         self.value = value
     def __repr__(self):
-        return show(self.value)
+        return self.value.show()
     def eval(self, env):
         return self.value
 
@@ -51,7 +42,7 @@ class Call(object):
     def __repr__(self):
         return '%s.%s' % (self.receiver, self.selector)
     def eval(self, env):
-        return call(self.receiver.eval(env), self.selector)
+        return self.receiver.eval(env)[self.selector]
 
 class Extend(object):
     def __init__(self, base, name, bindings):
@@ -63,14 +54,9 @@ class Extend(object):
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
     def eval(self, env):
-        # If you comment out the following two lines, speed on our
-        # benchmarks almost doubles. Does any real code profit from
-        # Thunk?
-        return Thunk(self, env)
-    def force(self, env):
-        return extend(self.base.eval(env),
-                      {slot: make_slot_thunk(self.name, expr, env)
-                       for slot, expr in self.bindings})
+        return Extension(self.base.eval(env),
+                         {slot: make_slot_thunk(self.name, expr, env)
+                          for slot, expr in self.bindings})
 
 def make_slot_thunk(slot, expr, env):
     def thunk(rcvr):
@@ -79,85 +65,102 @@ def make_slot_thunk(slot, expr, env):
         return expr.eval(new_env)
     return thunk
 
-class Thunk(object): 
-    def __init__(self, expr, env):
-        assert isinstance(expr, Extend)
-        self.expr = expr
-        self.env = env
-        self.forced = None
-    def __repr__(self):
-        return 'Thunk(%r)' % self.expr
-    def show(self, prim=repr):
-        return show(self.forced, prim) if self.forced else '$'
-    def force(self):
-        if self.forced is None:
-            self.forced = self.expr.force(self.env)
-        return self.forced
-    def get(self, key):              return self.force().get(key)
-    def __getitem__(self, key):      return self.force().__getitem__(key)
-    def __setitem__(self, key, val): return self.force().__setitem__(key, val)
-    def items(self):                 return self.force().items()
-    def __iter__(self):              return iter(self.force().items())
+class BicicletaObject(dict):
+    parent = None
+    primval = None
+    def __missing__(self, key):
+        self[key] = value = self.lookup(key)(self)
+        return value
+    def deep_keys(self):
+        ancestor, keys = self, set()
+        while ancestor is not None:
+            keys.update(ancestor.methods)
+            ancestor = ancestor.parent
+        return keys
 
-def call(receiver, selector):
-    what = receiver[selector]
-    if callable(what):
-        value = what(receiver)
-        receiver[selector] = value
-    else:
-        value = what
-    return value
+class Extension(BicicletaObject):
+    def __init__(self, parent, methods):
+        BicicletaObject.__init__(self)
+        self.parent = parent
+        self.methods = methods
+    def lookup(self, key):
+        ancestor = self
+        while True:
+            try:
+                return ancestor.methods[key]
+            except KeyError:
+                ancestor = ancestor.parent
+                if ancestor is None:
+                    raise
+    def show(self, prim=repr):
+        return '{%s}' % ', '.join(sorted(self.deep_keys()))
+
+class Prim(BicicletaObject):
+    def __init__(self, primval, methods):
+        BicicletaObject.__init__(self)
+        self.primval = primval
+        self.methods = methods
+    def lookup(self, key):
+        return self.methods[key]
+    def show(self, prim=repr):
+        return prim(self.primval)
 
 def extend(dictlike, bindings):
     result = dict(dictlike)
     result.update(bindings)
     return result
 
-initial_env = {'<>': {}}
+initial_env = {'<>': Prim(None, {})}
 
 
 # Primitive objects
+# TODO: make up a scheme to not build all these lambda doing: closures?
 
 def Number(n):
-    return {'__value__': n,
-            '+':  lambda _: {'()': lambda doing:
-                             Number(n + call(doing, 'arg1')['__value__'])},
-            '-':  lambda _: {'()': lambda doing:
-                             Number(n - call(doing, 'arg1')['__value__'])},
-            '*':  lambda _: {'()': lambda doing:
-                             Number(n * call(doing, 'arg1')['__value__'])},
-            '/':  lambda _: {'()': lambda doing:
-                             Number(n / call(doing, 'arg1')['__value__'])},
-            '**': lambda _: {'()': lambda doing:
-                             Number(n ** call(doing, 'arg1')['__value__'])},
-            '==': lambda _: {'()': lambda operation:
-                             Claim(n == call(operation, 'arg1').get('__value__'))},
-            '<':  lambda _: {'()': lambda operation: # XXX should cmp of num and string be an error?
-                             (lambda other: Claim(other.get('__value__') is not None
-                                                  and n < other['__value__']))(call(operation, 'arg1'))}}
+    return Prim(n, number_methods)
+
+number_methods = {
+    '+':  lambda me: Prim(None, {'()': lambda doing:
+                                 Number(me.primval + doing['arg1'].primval)}),
+    '-':  lambda me: Prim(None, {'()': lambda doing:
+                                 Number(me.primval - doing['arg1'].primval)}),
+    '*':  lambda me: Prim(None, {'()': lambda doing:
+                                 Number(me.primval * doing['arg1'].primval)}),
+    '/':  lambda me: Prim(None, {'()': lambda doing:
+                                 Number(me.primval / doing['arg1'].primval)}),
+    '**': lambda me: Prim(None, {'()': lambda doing:
+                                 Number(me.primval ** doing['arg1'].primval)}),
+    '==': lambda me: Prim(None, {'()': lambda doing:
+                                 Claim(me.primval == doing['arg1'].primval)}),
+    '<':  lambda me: Prim(None, {'()': lambda doing: # XXX should cmp of num and string be an error?
+                                 (lambda other: Claim(other.primval is not None
+                                                      and me.primval < other.primval))(doing['arg1'])})
+}
 
 def String(s):
-    return {'__value__': s,
-            '==': lambda _: {'()': lambda operation:
-                             Claim(s == call(operation, 'arg1').get('__value__'))},
-            '<':  lambda _: {'()': lambda operation:
-                             (lambda other: Claim(other.get('__value__') is not None
-                                                  and s < other['__value__']))(call(operation, 'arg1'))},
-            '%':  lambda _: {'()': lambda operation:
-                             String(string_substitute(s, call(operation, 'arg1')))}
-        }
+    return Prim(s, string_methods)
+
+string_methods = {
+    '==': lambda me: Prim(None, {'()': lambda doing:
+                                 Claim(me.primval == doing['arg1'].primval)}),
+    '<':  lambda me: Prim(None, {'()': lambda doing:
+                                 (lambda other: Claim(other.primval is not None
+                                                      and me.primval < other.primval))(doing['arg1'])}),
+    '%':  lambda me: Prim(None, {'()': lambda doing:
+                                 String(string_substitute(me.primval, doing['arg1']))})
+}
 
 def string_substitute(template, obj):
     import re
-    return re.sub(r'{(.*?)}', lambda m: show(call(obj, m.group(1)), str),
+    return re.sub(r'{(.*?)}', lambda m: obj[m.group(1)].show(str),
                   template)
 
 def Claim(value):
     assert isinstance(value, bool)
     return true_claim if value else false_claim
 
-true_claim  = {'if': lambda _: {'()': lambda picking: call(picking, 'so')}}
-false_claim = {'if': lambda _: {'()': lambda picking: call(picking, 'not')}}
+true_claim  = Prim(None, {'if': lambda me: Prim(None, {'()': lambda picking: picking['so']})})
+false_claim = Prim(None, {'if': lambda me: Prim(None, {'()': lambda picking: picking['not']})})
 
 
 # Parser
@@ -236,8 +239,8 @@ parse = Parser(program_grammar, int=int, float=float, **globals())
 ## run(wtf)
 #. '42'
 
-## parse("{y=42, x=55, z=137}.x")[0].eval(initial_env)['__value__']
-#. 55
+## run("{y=42, x=55, z=137}.x")
+#. '55'
 
 ## parse("137")[0]
 #. 137
@@ -280,9 +283,8 @@ test_extend, = parse("""
      result = main.three.xx + main.four.xx
     }.result
 """)
-# XXX wrong answer
 ## run(test_extend)
-#. '12'
+#. '14'
 
 ## run('"hey {x} and {why}" % {x=84/2, why=136+1}')
 #. "'hey 42.0 and 137'"
