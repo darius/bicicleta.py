@@ -17,7 +17,50 @@ def run(program):
     return program.eval(initial_env).show()
 
 
-# Expressions, environments, and objects
+# Objects
+
+class BicicletaObject(dict):
+    parent = None
+    primval = None
+    def __missing__(self, key):
+        self[key] = value = self.lookup(key)(self)
+        return value
+    def deep_keys(self):
+        ancestor, keys = self, set()
+        while ancestor is not None:
+            keys.update(ancestor.methods)
+            ancestor = ancestor.parent
+        return keys
+
+class Extension(BicicletaObject):
+    def __init__(self, parent, methods):
+        BicicletaObject.__init__(self)
+        self.parent = parent
+        self.methods = methods
+    def lookup(self, key):
+        ancestor = self
+        while True:
+            try:
+                return ancestor.methods[key]
+            except KeyError:
+                ancestor = ancestor.parent
+                if ancestor is None:
+                    raise
+    def show(self, prim=repr):
+        return '{%s}' % ', '.join(sorted(self.deep_keys()))
+
+class Prim(BicicletaObject):
+    def __init__(self, primval, methods):
+        BicicletaObject.__init__(self)
+        self.primval = primval
+        self.methods = methods
+    def lookup(self, key):
+        return self.methods[key]
+    def show(self, prim=repr):
+        return prim(self.primval)
+
+
+# Evaluation
 
 class VarRef(object):
     def __init__(self, name):
@@ -64,46 +107,6 @@ def make_slot_thunk(slot, expr, env):
         new_env[slot] = rcvr
         return expr.eval(new_env)
     return thunk
-
-class BicicletaObject(dict):
-    parent = None
-    primval = None
-    def __missing__(self, key):
-        self[key] = value = self.lookup(key)(self)
-        return value
-    def deep_keys(self):
-        ancestor, keys = self, set()
-        while ancestor is not None:
-            keys.update(ancestor.methods)
-            ancestor = ancestor.parent
-        return keys
-
-class Extension(BicicletaObject):
-    def __init__(self, parent, methods):
-        BicicletaObject.__init__(self)
-        self.parent = parent
-        self.methods = methods
-    def lookup(self, key):
-        ancestor = self
-        while True:
-            try:
-                return ancestor.methods[key]
-            except KeyError:
-                ancestor = ancestor.parent
-                if ancestor is None:
-                    raise
-    def show(self, prim=repr):
-        return '{%s}' % ', '.join(sorted(self.deep_keys()))
-
-class Prim(BicicletaObject):
-    def __init__(self, primval, methods):
-        BicicletaObject.__init__(self)
-        self.primval = primval
-        self.methods = methods
-    def lookup(self, key):
-        return self.methods[key]
-    def show(self, prim=repr):
-        return prim(self.primval)
 
 def extend(dictlike, bindings):
     result = dict(dictlike)
