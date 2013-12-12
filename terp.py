@@ -3,6 +3,7 @@ Interpreter for a dialect of Bicicleta. I changed the 'if' syntax and
 left out some things.
 """
 
+from __future__ import division
 import sys; sys.setrecursionlimit(2500)
 
 from peglet import Parser, hug
@@ -125,6 +126,8 @@ def Number(n):
                              Number(n - call(doing, 'arg1')['__value__'])},
             '*':  lambda _: {'()': lambda doing:
                              Number(n * call(doing, 'arg1')['__value__'])},
+            '/':  lambda _: {'()': lambda doing:
+                             Number(n / call(doing, 'arg1')['__value__'])},
             '==': lambda _: {'()': lambda operation:
                              Claim(n == call(operation, 'arg1').get('__value__'))},
             '<':  lambda _: {'()': lambda operation: # XXX should cmp of num and string be an error?
@@ -278,8 +281,8 @@ test_extend, = parse("""
 ## run(test_extend)
 #. '7'
 
-## run('"hey {x} and {why}" % {x=42, why=136+1}')
-#. "'hey 42 and 137'"
+## run('"hey {x} and {why}" % {x=84/2, why=136+1}')
+#. "'hey 42.0 and 137'"
 
 def make_fac(n):
     fac, = parse("""
