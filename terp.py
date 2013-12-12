@@ -186,11 +186,13 @@ affix       = _ [.] name                    defer_dot
 
 derive      = _ { name _ : bindings _ }     defer_derive
             | _ { nameless bindings _ }     defer_derive
-bindings    = binding newline bindings
-            | binding _ , bindings
+bindings    = binds                         name_positions
+binds       = binding newline binds
+            | binding _ , binds
             | binding
             | 
 binding     = name _ [=] expr               hug
+            | positional expr               hug
 
 infixes     = infix infixes | 
 infix       = infix_op factor               defer_infix
@@ -207,20 +209,24 @@ blank       = !\n (?:\s|#.*)
 
 _           = (?:\s|#.*)*
 """
-# TODO: positional arguments
 # TODO: support backslashes in '' and ""
 # TODO: foo(name: x=y) [if actually wanted]
 
 def empty(): return VarRef('<>')
 def nameless(): return ''
+def positional(): return None
+
+def name_positions(*bindings):
+    return tuple((('arg%d' % i if slot is None else slot), expr)
+                 for i, (slot, expr) in enumerate(bindings, 1))
 
 def attach_all(expr, *affixes):    return reduce(attach, affixes, expr)
 def attach(expr, affix):           return affix[0](expr, *affix[1:])
 
 def defer_dot(name):               return Call, name
-def defer_derive(name, *bindings): return Extend, name, bindings
-def defer_funcall(*bindings):      return mk_funcall, '()', bindings
-def defer_squarecall(*bindings):   return mk_funcall, '[]', bindings
+def defer_derive(name, bindings):  return Extend, name, bindings
+def defer_funcall(bindings):       return mk_funcall, '()', bindings
+def defer_squarecall(bindings):    return mk_funcall, '[]', bindings
 def defer_infix(operator, expr):   return mk_infix, operator, expr
 
 def mk_funcall(expr, selector, bindings):
