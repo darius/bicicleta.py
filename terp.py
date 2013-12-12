@@ -32,9 +32,17 @@ class BicicletaObject(dict):
             ancestor = ancestor.parent
         return keys
 
+class Prim(BicicletaObject):
+    def __init__(self, primval, methods):
+        self.primval = primval
+        self.methods = methods
+    def lookup(self, key):
+        return self.methods[key]
+    def show(self, prim=repr):
+        return prim(self.primval)
+
 class Extension(BicicletaObject):
     def __init__(self, parent, methods):
-        BicicletaObject.__init__(self)
         self.parent = parent
         self.methods = methods
     def lookup(self, key):
@@ -48,16 +56,6 @@ class Extension(BicicletaObject):
                     raise
     def show(self, prim=repr):
         return '{%s}' % ', '.join(sorted(self.deep_keys()))
-
-class Prim(BicicletaObject):
-    def __init__(self, primval, methods):
-        BicicletaObject.__init__(self)
-        self.primval = primval
-        self.methods = methods
-    def lookup(self, key):
-        return self.methods[key]
-    def show(self, prim=repr):
-        return prim(self.primval)
 
 
 # Primitive objects
