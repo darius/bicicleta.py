@@ -60,6 +60,56 @@ class Prim(BicicletaObject):
         return prim(self.primval)
 
 
+# Primitive objects
+# TODO: make up a scheme to not build all these lambda doing: closures?
+
+def Number(n):
+    return Prim(n, number_methods)
+
+number_methods = {
+    '+':  lambda me: Prim(None, {'()': lambda doing:
+                                 Number(me.primval + doing['arg1'].primval)}),
+    '-':  lambda me: Prim(None, {'()': lambda doing:
+                                 Number(me.primval - doing['arg1'].primval)}),
+    '*':  lambda me: Prim(None, {'()': lambda doing:
+                                 Number(me.primval * doing['arg1'].primval)}),
+    '/':  lambda me: Prim(None, {'()': lambda doing:
+                                 Number(me.primval / doing['arg1'].primval)}),
+    '**': lambda me: Prim(None, {'()': lambda doing:
+                                 Number(me.primval ** doing['arg1'].primval)}),
+    '==': lambda me: Prim(None, {'()': lambda doing:
+                                 Claim(me.primval == doing['arg1'].primval)}),
+    '<':  lambda me: Prim(None, {'()': lambda doing: # XXX should cmp of num and string be an error?
+                                 (lambda other: Claim(other.primval is not None
+                                                      and me.primval < other.primval))(doing['arg1'])})
+}
+
+def String(s):
+    return Prim(s, string_methods)
+
+string_methods = {
+    '==': lambda me: Prim(None, {'()': lambda doing:
+                                 Claim(me.primval == doing['arg1'].primval)}),
+    '<':  lambda me: Prim(None, {'()': lambda doing:
+                                 (lambda other: Claim(other.primval is not None
+                                                      and me.primval < other.primval))(doing['arg1'])}),
+    '%':  lambda me: Prim(None, {'()': lambda doing:
+                                 String(string_substitute(me.primval, doing['arg1']))})
+}
+
+def string_substitute(template, obj):
+    import re
+    return re.sub(r'{(.*?)}', lambda m: obj[m.group(1)].show(str),
+                  template)
+
+def Claim(value):
+    assert isinstance(value, bool)
+    return true_claim if value else false_claim
+
+true_claim  = Prim(None, {'if': lambda me: Prim(None, {'()': lambda picking: picking['so']})})
+false_claim = Prim(None, {'if': lambda me: Prim(None, {'()': lambda picking: picking['not']})})
+
+
 # Evaluation
 
 class VarRef(object):
@@ -114,56 +164,6 @@ def extend(dictlike, bindings):
     return result
 
 initial_env = {'<>': Prim(None, {})}
-
-
-# Primitive objects
-# TODO: make up a scheme to not build all these lambda doing: closures?
-
-def Number(n):
-    return Prim(n, number_methods)
-
-number_methods = {
-    '+':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval + doing['arg1'].primval)}),
-    '-':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval - doing['arg1'].primval)}),
-    '*':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval * doing['arg1'].primval)}),
-    '/':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval / doing['arg1'].primval)}),
-    '**': lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval ** doing['arg1'].primval)}),
-    '==': lambda me: Prim(None, {'()': lambda doing:
-                                 Claim(me.primval == doing['arg1'].primval)}),
-    '<':  lambda me: Prim(None, {'()': lambda doing: # XXX should cmp of num and string be an error?
-                                 (lambda other: Claim(other.primval is not None
-                                                      and me.primval < other.primval))(doing['arg1'])})
-}
-
-def String(s):
-    return Prim(s, string_methods)
-
-string_methods = {
-    '==': lambda me: Prim(None, {'()': lambda doing:
-                                 Claim(me.primval == doing['arg1'].primval)}),
-    '<':  lambda me: Prim(None, {'()': lambda doing:
-                                 (lambda other: Claim(other.primval is not None
-                                                      and me.primval < other.primval))(doing['arg1'])}),
-    '%':  lambda me: Prim(None, {'()': lambda doing:
-                                 String(string_substitute(me.primval, doing['arg1']))})
-}
-
-def string_substitute(template, obj):
-    import re
-    return re.sub(r'{(.*?)}', lambda m: obj[m.group(1)].show(str),
-                  template)
-
-def Claim(value):
-    assert isinstance(value, bool)
-    return true_claim if value else false_claim
-
-true_claim  = Prim(None, {'if': lambda me: Prim(None, {'()': lambda picking: picking['so']})})
-false_claim = Prim(None, {'if': lambda me: Prim(None, {'()': lambda picking: picking['not']})})
 
 
 # Parser
