@@ -167,41 +167,46 @@ initial_env = {'<>': Prim(None, {})}
 # Parser
 
 program_grammar = r"""
-program     = _ expr !.
+program     = expr _ !.
 expr        = factor infixes                attach_all
 factor      = primary affixes               attach_all
 
 primary     = name                          VarRef
-            | (\d*\.\d+) _                  float Number Literal
-            | (\d+) _                       int   Number Literal
-            | "([^"\\]*)" _                       String Literal
-            | \( _ expr \) _
+            | _ (\d*\.\d+)                  float Number Literal
+            | _ (\d+)                       int   Number Literal
+            | _ "([^"\\]*)"                       String Literal
+            | _ \( _ expr \)
             | empty derive                  attach
 
 affixes     = affix affixes | 
-affix       = [.] name                      defer_dot
+affix       = _ [.] name                    defer_dot
             | derive
-            | \( _ bindings \) _            defer_funcall
-            | \[ _ bindings \] _            defer_squarecall
+            | _ \( bindings _ \)            defer_funcall
+            | _ \[ bindings _ \]            defer_squarecall
 
-derive      = { _ name : _ bindings } _     defer_derive
-            | { _ nameless bindings } _     defer_derive
-bindings    = binding , _ bindings
+derive      = _ { name _ : bindings _ }     defer_derive
+            | _ { nameless bindings _ }     defer_derive
+bindings    = binding newline bindings
+            | binding _ , bindings
             | binding
             | 
-binding     = name [=] _ expr               hug
+binding     = name _ [=] expr               hug
 
 infixes     = infix infixes | 
 infix       = infix_op factor               defer_infix
-infix_op    = !lone_eq opchars _
+infix_op    = _ !lone_eq opchars
 opchars     = ([-~`!@$%^&*+<>?/|\\=]+)
 lone_eq     = [=] !opchars
 
-name        = ([A-Za-z_][A-Za-z_0-9]*) _
-            | '([^'\\]*)' _
+name        = _ ([A-Za-z_][A-Za-z_0-9]*)
+            | _ '([^'\\]*)'
+
+newline     = blanks \n
+blanks      = blank blanks | 
+blank       = !\n (?:\s|#.*)
+
 _           = (?:\s|#.*)*
 """
-# TODO: comma optionally a newline instead
 # TODO: positional arguments
 # TODO: support backslashes in '' and ""
 # TODO: foo(name: x=y) [if actually wanted]
