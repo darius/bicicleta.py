@@ -59,7 +59,6 @@ class Extension(BicicletaObject):
 
 
 # Primitive objects
-# TODO: make up a scheme to not build all these lambda doing: closures?
 
 def Number(n):
     return Prim(n, number_methods)
