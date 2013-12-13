@@ -5,6 +5,7 @@ left out some things.
 
 from __future__ import division
 import sys; sys.setrecursionlimit(7500)
+from functools import reduce
 
 from peglet import OneResult, Parser, hug
 
@@ -12,7 +13,7 @@ from peglet import OneResult, Parser, hug
 # Top level
 
 def run(program):
-    if isinstance(program, (str, unicode)):
+    if isinstance(program, str):
         program = parse(program)
     return program.eval(initial_env).show()
 
@@ -386,15 +387,15 @@ def timed(f):
 
 def bench2():
     tarai = make_tarai()
-    print timed(lambda: run(tarai))
+    print(timed(lambda: run(tarai)))
 
 def bench3():
     tak = make_tak()
-    print timed(lambda: run(tak))
+    print(timed(lambda: run(tak)))
 
 if __name__ == '__main__':
     bench2()
-    print timed(lambda: run(itersum3))
+    print(timed(lambda: run(itersum3)))
     fib = make_fib(20)
-    print timed(lambda: run(fib))
+    print(timed(lambda: run(fib)))
     bench3()
