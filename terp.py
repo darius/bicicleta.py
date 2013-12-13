@@ -117,7 +117,7 @@ class VarRef(object):
     def __init__(self, name):
         self.name = name
     def __repr__(self):
-        return '@' + self.name
+        return self.name
     def eval(self, env):
         return env[self.name]
 
@@ -149,7 +149,8 @@ class Extend(object):
         self.name = name
         self.bindings = bindings
     def __repr__(self):
-        return '%s{%s: %s}' % (self.base, self.name or '',
+        return '%s{%s%s}' % (self.base,
+                             self.name + ': ' if self.name else '',
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
     def eval(self, env):
@@ -255,11 +256,11 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 # Crude tests and benchmarks
 
 ## parse("x ++ y{a=b} <*> z.foo")
-#. @x.++{: arg1=@y{: a=@b}}.().<*>{: arg1=@z.foo}.()
+#. x.++{arg1=y{a=b}}.().<*>{arg1=z.foo}.()
 
 ## wtf = parse("{x=42, y=55}.x")
 ## wtf
-#. @<>{: x=42, y=55}.x
+#. <>{x=42, y=55}.x
 ## run(wtf)
 #. '42'
 
@@ -269,11 +270,11 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 ## parse("137")
 #. 137
 ## parse("137[yo=dude]")
-#. 137{: yo=@dude}.[]
+#. 137{yo=dude}.[]
 
 ## adding = parse("137.'+' {arg1=1}.'()'")
 ## adding
-#. 137.+{: arg1=1}.()
+#. 137.+{arg1=1}.()
 ## run(adding)
 #. '138'
 
@@ -326,7 +327,7 @@ def make_fac(n):
 
 fac = make_fac(4)
 ## fac
-#. @<>{env: fac=@<>{fac: ()=@fac.n.=={: arg1=0}.().if{: so=1, not=@fac.n.*{: arg1=@env.fac{: n=@fac.n.-{: arg1=1}.()}.()}.()}.()}}.fac{: n=4}.()
+#. <>{env: fac=<>{fac: ()=fac.n.=={arg1=0}.().if{so=1, not=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
 ## run(fac)
 #. '24'
 
