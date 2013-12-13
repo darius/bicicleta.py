@@ -5,6 +5,7 @@ left out some things.
 
 from __future__ import division
 import sys; sys.setrecursionlimit(7500)
+from functools import reduce
 
 from peglet import OneResult, Parser, hug
 
@@ -12,14 +13,14 @@ from peglet import OneResult, Parser, hug
 # Top level
 
 def run(program):
-    if isinstance(program, (str, unicode)):
+    if isinstance(program, str):
         program = parse(program)
     return program.eval(initial_env).show()
 
 
 # Objects
 
-class BicicletaObject(dict):
+class BicicletaObject(dict):    # ('bob' for short)
     parent = None
     primval = None
     def __missing__(self, slot):
@@ -37,17 +38,17 @@ class Prim(BicicletaObject):
     def show(self, prim=repr):
         return prim(self.primval)
 
-class PrimOp2(BicicletaObject):
-    def __init__(self, fn, arg0):
-        self.fn = fn
+class PrimOp1(BicicletaObject):
+    def __init__(self, arg0, fn):
         self.arg0 = arg0
+        self.fn = fn
     def call(self, slot, recipient):
         if slot != '()': raise KeyError(slot)
         return self.fn(self.arg0.primval, recipient['arg1'])
     def list_slots(self):
         return frozenset(['()'])
     def show(self, prim=repr):
-        return 'PrimOp2(%r, %r)' % (self.fn, self.arg0.show(prim))
+        return 'PrimOp1(%r, %r)' % (self.arg0.show(prim), self.fn)
 
 class Extension(BicicletaObject):
     def __init__(self, parent, methods):
@@ -68,17 +69,18 @@ class Extension(BicicletaObject):
 
 # Primitive objects
 
-def Number(n): return Prim(n, number_methods)
-
-number_methods = {
-    '+':  lambda me: PrimOp2(num_add, me),
-    '-':  lambda me: PrimOp2(num_sub, me),
-    '*':  lambda me: PrimOp2(num_mul, me),
-    '/':  lambda me: PrimOp2(num_div, me),
-    '**': lambda me: PrimOp2(num_pow, me),
-    '==': lambda me: PrimOp2(prim_eq, me),
-    '<':  lambda me: PrimOp2(prim_lt, me),
-}
+class Number(Prim):
+    def __init__(self, n):
+        self.primval = n
+    methods = {
+        '+':  lambda me: PrimOp1(me, num_add),
+        '-':  lambda me: PrimOp1(me, num_sub),
+        '*':  lambda me: PrimOp1(me, num_mul),
+        '/':  lambda me: PrimOp1(me, num_div),
+        '**': lambda me: PrimOp1(me, num_pow),
+        '==': lambda me: PrimOp1(me, prim_eq),
+        '<':  lambda me: PrimOp1(me, prim_lt),
+    }
 
 def num_add(v1, v2): return Number(v1 + v2.primval)
 def num_sub(v1, v2): return Number(v1 - v2.primval)
@@ -86,30 +88,32 @@ def num_mul(v1, v2): return Number(v1 * v2.primval)
 def num_div(v1, v2): return Number(v1 / v2.primval)
 def num_pow(v1, v2): return Number(v1 ** v2.primval)
 
-def prim_eq(v1, v2):  return Claim(v1 == v2.primval)
-def prim_lt(v1, v2):  return Claim(v1 < v2.primval) # XXX num and other type be an error?
+def prim_eq(v1, v2): return Claim(v1 == v2.primval)
+def prim_lt(v1, v2): return Claim(v1 < v2.primval)
+# XXX should < on different types be an error?
 
-def String(s): return Prim(s, string_methods)
+class String(Prim):
+    def __init__(self, s):
+        self.primval = s
+    methods = {
+        '==': lambda me: PrimOp1(me, prim_eq),
+        '<':  lambda me: PrimOp1(me, prim_lt),
+        '%':  lambda me: PrimOp1(me, string_substitute),
+    }
 
-string_methods = {
-    '==': lambda me: PrimOp2(prim_eq, me),
-    '<':  lambda me: PrimOp2(prim_lt, me),
-    '%':  lambda me: PrimOp2(string_substitute, me),
-}
-
-def string_substitute(template, obj):
+def string_substitute(template, bob):
     import re
-    return String(re.sub(r'{(.*?)}', lambda m: obj[m.group(1)].show(str),
+    return String(re.sub(r'{(.*?)}', lambda m: bob[m.group(1)].show(str),
                          template))
 
 def Claim(value):
     assert isinstance(value, bool)
     return true_claim if value else false_claim
 
-pick_so     = Prim(None, {'()': lambda picking: picking['so']})
-pick_not    = Prim(None, {'()': lambda picking: picking['not']})
 true_claim  = Prim(None, {'if': lambda me: pick_so})
 false_claim = Prim(None, {'if': lambda me: pick_not})
+pick_so     = Prim(None, {'()': lambda doing: doing['so']})
+pick_not    = Prim(None, {'()': lambda doing: doing['not']})
 
 
 # Evaluation
@@ -118,7 +122,7 @@ class VarRef(object):
     def __init__(self, name):
         self.name = name
     def __repr__(self):
-        return '@' + self.name
+        return self.name
     def eval(self, env):
         return env[self.name]
 
@@ -131,13 +135,18 @@ class Literal(object):
         return self.value
 
 class Call(object):
-    def __init__(self, receiver, selector):
+    def __init__(self, receiver, slot):
         self.receiver = receiver
-        self.selector = selector
+        self.slot = slot
     def __repr__(self):
-        return '%s.%s' % (self.receiver, self.selector)
+        return '%s.%s' % (self.receiver, self.slot)
     def eval(self, env):
-        return self.receiver.eval(env)[self.selector]
+        return self.receiver.eval(env)[self.slot]
+
+def make_extend(base, name, bindings):
+    extend = SelflessExtend if name is None else Extend
+    # (We needn't special-case this; it's an optimization.)
+    return extend(base, name, bindings)
 
 class Extend(object):
     def __init__(self, base, name, bindings):
@@ -145,7 +154,8 @@ class Extend(object):
         self.name = name
         self.bindings = bindings
     def __repr__(self):
-        return '%s{%s: %s}' % (self.base, self.name,
+        return '%s{%s%s}' % (self.base,
+                             self.name + ': ' if self.name else '',
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
     def eval(self, env):
@@ -153,17 +163,21 @@ class Extend(object):
                          {slot: make_slot_thunk(self.name, expr, env)
                           for slot, expr in self.bindings})
 
-def make_slot_thunk(slot, expr, env):
+class SelflessExtend(Extend):
+    def eval(self, env):
+        return Extension(self.base.eval(env),
+                         {slot: make_selfless_slot_thunk(expr, env)
+                          for slot, expr in self.bindings})
+
+def make_selfless_slot_thunk(expr, env):
+    return lambda _: expr.eval(env)
+
+def make_slot_thunk(name, expr, env):
     def thunk(rcvr):
         new_env = dict(env)
-        new_env[slot] = rcvr
+        new_env[name] = rcvr
         return expr.eval(new_env)
     return thunk
-
-def extend(dictlike, bindings):
-    result = dict(dictlike)
-    result.update(bindings)
-    return result
 
 initial_env = {'<>': Prim(None, {})}
 
@@ -217,7 +231,7 @@ _           = (?:\s|#.*)*
 # TODO: foo(name: x=y) [if actually wanted]
 
 def empty(): return VarRef('<>')
-def nameless(): return ''
+def nameless(): return None
 def positional(): return None
 
 def name_positions(*bindings):
@@ -228,14 +242,14 @@ def attach_all(expr, *affixes):    return reduce(attach, affixes, expr)
 def attach(expr, affix):           return affix[0](expr, *affix[1:])
 
 def defer_dot(name):               return Call, name
-def defer_derive(name, bindings):  return Extend, name, bindings
+def defer_derive(name, bindings):  return make_extend, name, bindings
 def defer_funcall(bindings):       return mk_funcall, '()', bindings
 def defer_squarecall(bindings):    return mk_funcall, '[]', bindings
 def defer_infix(operator, expr):   return mk_infix, operator, expr
 
-def mk_funcall(expr, selector, bindings):
+def mk_funcall(expr, slot, bindings):
     "  foo(x=y) ==> foo{x=y}.'()'  "
-    return Call(Extend(expr, nameless(), bindings), selector)
+    return Call(make_extend(expr, nameless(), bindings), slot)
 
 def mk_infix(left, operator, right):
     "   x + y ==> x.'+'(_=y)  "
@@ -247,11 +261,11 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 # Crude tests and benchmarks
 
 ## parse("x ++ y{a=b} <*> z.foo")
-#. @x.++{: arg1=@y{: a=@b}}.().<*>{: arg1=@z.foo}.()
+#. x.++{arg1=y{a=b}}.().<*>{arg1=z.foo}.()
 
 ## wtf = parse("{x=42, y=55}.x")
 ## wtf
-#. @<>{: x=42, y=55}.x
+#. <>{x=42, y=55}.x
 ## run(wtf)
 #. '42'
 
@@ -261,11 +275,11 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 ## parse("137")
 #. 137
 ## parse("137[yo=dude]")
-#. 137{: yo=@dude}.[]
+#. 137{yo=dude}.[]
 
 ## adding = parse("137.'+' {arg1=1}.'()'")
 ## adding
-#. 137.+{: arg1=1}.()
+#. 137.+{arg1=1}.()
 ## run(adding)
 #. '138'
 
@@ -318,7 +332,7 @@ def make_fac(n):
 
 fac = make_fac(4)
 ## fac
-#. @<>{env: fac=@<>{fac: ()=@fac.n.=={: arg1=0}.().if{: so=1, not=@fac.n.*{: arg1=@env.fac{: n=@fac.n.-{: arg1=1}.()}.()}.()}.()}}.fac{: n=4}.()
+#. <>{env: fac=<>{fac: ()=fac.n.=={arg1=0}.().if{so=1, not=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
 ## run(fac)
 #. '24'
 
