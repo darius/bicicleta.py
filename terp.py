@@ -159,11 +159,6 @@ def make_slot_thunk(slot, expr, env):
         return expr.eval(new_env)
     return thunk
 
-def extend(dictlike, bindings):
-    result = dict(dictlike)
-    result.update(bindings)
-    return result
-
 initial_env = {'<>': Prim(None, {})}
 
 
