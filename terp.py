@@ -64,16 +64,18 @@ class Extension(BicicletaObject):
 def PrimOp2(fn, me):
     return Prim(None, {'()': lambda doing: fn(me.primval, doing['arg1'])})
 
-def Number(n): return Prim(n, number_methods)
-number_methods = {
-    '+':  lambda me: PrimOp2(num_add, me),
-    '-':  lambda me: PrimOp2(num_sub, me),
-    '*':  lambda me: PrimOp2(num_mul, me),
-    '/':  lambda me: PrimOp2(num_div, me),
-    '**': lambda me: PrimOp2(num_pow, me),
-    '==': lambda me: PrimOp2(prim_eq, me),
-    '<':  lambda me: PrimOp2(prim_lt, me),
-}
+class Number(Prim):
+    methods = {
+        '+':  lambda me: PrimOp2(num_add, me),
+        '-':  lambda me: PrimOp2(num_sub, me),
+        '*':  lambda me: PrimOp2(num_mul, me),
+        '/':  lambda me: PrimOp2(num_div, me),
+        '**': lambda me: PrimOp2(num_pow, me),
+        '==': lambda me: PrimOp2(prim_eq, me),
+        '<':  lambda me: PrimOp2(prim_lt, me),
+    }
+    def __init__(self, n):
+        self.primval = n
 
 def num_add(v1, v2): return Number(v1 + v2.primval)
 def num_sub(v1, v2): return Number(v1 - v2.primval)
@@ -85,12 +87,14 @@ def prim_eq(v1, v2): return Claim(v1 == v2.primval)
 def prim_lt(v1, v2): return Claim(v1 < v2.primval)
 # XXX should < on different types be an error?
 
-def String(s): return Prim(s, string_methods)
-string_methods = {
-    '==': lambda me: PrimOp2(prim_eq, me),
-    '<':  lambda me: PrimOp2(prim_lt, me),
-    '%':  lambda me: PrimOp2(string_substitute, me),
-}
+class String(Prim):
+    methods = {
+        '==': lambda me: PrimOp2(prim_eq, me),
+        '<':  lambda me: PrimOp2(prim_lt, me),
+        '%':  lambda me: PrimOp2(string_substitute, me),
+    }
+    def __init__(self, s):
+        self.primval = s
 
 def string_substitute(template, bob):
     import re
