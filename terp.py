@@ -152,10 +152,10 @@ class Extend(object):
                          {slot: make_slot_thunk(self.name, expr, env)
                           for slot, expr in self.bindings})
 
-def make_slot_thunk(slot, expr, env):
+def make_slot_thunk(name, expr, env):
     def thunk(rcvr):
         new_env = dict(env)
-        new_env[slot] = rcvr
+        new_env[name] = rcvr
         return expr.eval(new_env)
     return thunk
 
