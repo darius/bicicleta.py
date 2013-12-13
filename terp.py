@@ -138,19 +138,33 @@ class Call(object):
     def eval(self, env):
         return self.receiver.eval(env)[self.slot]
 
+def make_extend(base, name, bindings):
+    extend = SelflessExtend if name is None else Extend
+    # (We needn't special-case this; it's an optimization.)
+    return extend(base, name, bindings)
+
 class Extend(object):
     def __init__(self, base, name, bindings):
         self.base = base
         self.name = name
         self.bindings = bindings
     def __repr__(self):
-        return '%s{%s: %s}' % (self.base, self.name,
+        return '%s{%s: %s}' % (self.base, self.name or '',
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
     def eval(self, env):
         return Extension(self.base.eval(env),
                          {slot: make_slot_thunk(self.name, expr, env)
                           for slot, expr in self.bindings})
+
+class SelflessExtend(Extend):
+    def eval(self, env):
+        return Extension(self.base.eval(env),
+                         {slot: make_selfless_slot_thunk(expr, env)
+                          for slot, expr in self.bindings})
+
+def make_selfless_slot_thunk(expr, env):
+    return lambda _: expr.eval(env)
 
 def make_slot_thunk(name, expr, env):
     def thunk(rcvr):
@@ -211,7 +225,7 @@ _           = (?:\s|#.*)*
 # TODO: foo(name: x=y) [if actually wanted]
 
 def empty(): return VarRef('<>')
-def nameless(): return ''
+def nameless(): return None
 def positional(): return None
 
 def name_positions(*bindings):
@@ -222,14 +236,14 @@ def attach_all(expr, *affixes):    return reduce(attach, affixes, expr)
 def attach(expr, affix):           return affix[0](expr, *affix[1:])
 
 def defer_dot(name):               return Call, name
-def defer_derive(name, bindings):  return Extend, name, bindings
+def defer_derive(name, bindings):  return make_extend, name, bindings
 def defer_funcall(bindings):       return mk_funcall, '()', bindings
 def defer_squarecall(bindings):    return mk_funcall, '[]', bindings
 def defer_infix(operator, expr):   return mk_infix, operator, expr
 
 def mk_funcall(expr, slot, bindings):
     "  foo(x=y) ==> foo{x=y}.'()'  "
-    return Call(Extend(expr, nameless(), bindings), slot)
+    return Call(make_extend(expr, nameless(), bindings), slot)
 
 def mk_infix(left, operator, right):
     "   x + y ==> x.'+'(_=y)  "
