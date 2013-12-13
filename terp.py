@@ -61,20 +61,20 @@ class Extension(BicicletaObject):
 
 # Primitive objects
 
-def PrimOp1(fn, me):
+def PrimOp1(me, fn):
     return Prim(None, {'()': lambda doing: fn(me.primval, doing['arg1'])})
 
 class Number(Prim):
     def __init__(self, n):
         self.primval = n
     methods = {
-        '+':  lambda me: PrimOp1(num_add, me),
-        '-':  lambda me: PrimOp1(num_sub, me),
-        '*':  lambda me: PrimOp1(num_mul, me),
-        '/':  lambda me: PrimOp1(num_div, me),
-        '**': lambda me: PrimOp1(num_pow, me),
-        '==': lambda me: PrimOp1(prim_eq, me),
-        '<':  lambda me: PrimOp1(prim_lt, me),
+        '+':  lambda me: PrimOp1(me, num_add),
+        '-':  lambda me: PrimOp1(me, num_sub),
+        '*':  lambda me: PrimOp1(me, num_mul),
+        '/':  lambda me: PrimOp1(me, num_div),
+        '**': lambda me: PrimOp1(me, num_pow),
+        '==': lambda me: PrimOp1(me, prim_eq),
+        '<':  lambda me: PrimOp1(me, prim_lt),
     }
 
 def num_add(v1, v2): return Number(v1 + v2.primval)
@@ -91,9 +91,9 @@ class String(Prim):
     def __init__(self, s):
         self.primval = s
     methods = {
-        '==': lambda me: PrimOp1(prim_eq, me),
-        '<':  lambda me: PrimOp1(prim_lt, me),
-        '%':  lambda me: PrimOp1(string_substitute, me),
+        '==': lambda me: PrimOp1(me, prim_eq),
+        '<':  lambda me: PrimOp1(me, prim_lt),
+        '%':  lambda me: PrimOp1(me, string_substitute),
     }
 
 def string_substitute(template, bob):
