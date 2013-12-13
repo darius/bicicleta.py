@@ -19,7 +19,7 @@ def run(program):
 
 # Objects
 
-class BicicletaObject(dict):
+class BicicletaObject(dict):    # ('bob' for short)
     parent = None
     primval = None
     def __missing__(self, key):
@@ -60,53 +60,50 @@ class Extension(BicicletaObject):
 
 # Primitive objects
 
-def Number(n):
-    return Prim(n, number_methods)
+def PrimOp2(fn, me):
+    return Prim(None, {'()': lambda doing: fn(me.primval, doing['arg1'])})
 
+def Number(n): return Prim(n, number_methods)
 number_methods = {
-    '+':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval + doing['arg1'].primval)}),
-    '-':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval - doing['arg1'].primval)}),
-    '*':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval * doing['arg1'].primval)}),
-    '/':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval / doing['arg1'].primval)}),
-    '**': lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval ** doing['arg1'].primval)}),
-    '==': lambda me: Prim(None, {'()': lambda doing:
-                                 Claim(me.primval == doing['arg1'].primval)}),
-    '<':  lambda me: Prim(None, {'()': lambda doing: # XXX should cmp of num and string be an error?
-                                 (lambda other: Claim(other.primval is not None
-                                                      and me.primval < other.primval))(doing['arg1'])})
+    '+':  lambda me: PrimOp2(num_add, me),
+    '-':  lambda me: PrimOp2(num_sub, me),
+    '*':  lambda me: PrimOp2(num_mul, me),
+    '/':  lambda me: PrimOp2(num_div, me),
+    '**': lambda me: PrimOp2(num_pow, me),
+    '==': lambda me: PrimOp2(prim_eq, me),
+    '<':  lambda me: PrimOp2(prim_lt, me),
 }
 
-def String(s):
-    return Prim(s, string_methods)
+def num_add(v1, v2): return Number(v1 + v2.primval)
+def num_sub(v1, v2): return Number(v1 - v2.primval)
+def num_mul(v1, v2): return Number(v1 * v2.primval)
+def num_div(v1, v2): return Number(v1 / v2.primval)
+def num_pow(v1, v2): return Number(v1 ** v2.primval)
 
+def prim_eq(v1, v2): return Claim(v1 == v2.primval)
+def prim_lt(v1, v2): return Claim(v1 < v2.primval)
+# XXX should < on different types be an error?
+
+def String(s): return Prim(s, string_methods)
 string_methods = {
-    '==': lambda me: Prim(None, {'()': lambda doing:
-                                 Claim(me.primval == doing['arg1'].primval)}),
-    '<':  lambda me: Prim(None, {'()': lambda doing:
-                                 (lambda other: Claim(other.primval is not None
-                                                      and me.primval < other.primval))(doing['arg1'])}),
-    '%':  lambda me: Prim(None, {'()': lambda doing:
-                                 String(string_substitute(me.primval, doing['arg1']))})
+    '==': lambda me: PrimOp2(prim_eq, me),
+    '<':  lambda me: PrimOp2(prim_lt, me),
+    '%':  lambda me: PrimOp2(string_substitute, me),
 }
 
-def string_substitute(template, obj):
+def string_substitute(template, bob):
     import re
-    return re.sub(r'{(.*?)}', lambda m: obj[m.group(1)].show(str),
-                  template)
+    return String(re.sub(r'{(.*?)}', lambda m: bob[m.group(1)].show(str),
+                         template))
 
 def Claim(value):
     assert isinstance(value, bool)
     return true_claim if value else false_claim
 
-pick_so     = Prim(None, {'()': lambda picking: picking['so']})
-pick_not    = Prim(None, {'()': lambda picking: picking['not']})
 true_claim  = Prim(None, {'if': lambda me: pick_so})
 false_claim = Prim(None, {'if': lambda me: pick_not})
+pick_so     = Prim(None, {'()': lambda doing: doing['so']})
+pick_not    = Prim(None, {'()': lambda doing: doing['not']})
 
 
 # Evaluation
