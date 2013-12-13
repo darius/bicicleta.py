@@ -22,90 +22,94 @@ def run(program):
 class BicicletaObject(dict):
     parent = None
     primval = None
-    def __missing__(self, key):
-        self[key] = value = self.lookup(key)(self)
+    def __missing__(self, slot):
+        self[slot] = value = self.call(slot, self)
         return value
-    def deep_keys(self):
-        ancestor, keys = self, set()
-        while ancestor is not None:
-            keys.update(ancestor.methods)
-            ancestor = ancestor.parent
-        return keys
+    def list_slots(self):
+        return frozenset(self.methods.keys())
 
 class Prim(BicicletaObject):
     def __init__(self, primval, methods):
         self.primval = primval
         self.methods = methods
-    def lookup(self, key):
-        return self.methods[key]
+    def call(self, slot, recipient):
+        return self.methods[slot](recipient)
     def show(self, prim=repr):
         return prim(self.primval)
+
+class PrimOp2(BicicletaObject):
+    def __init__(self, fn, arg0):
+        self.fn = fn
+        self.arg0 = arg0
+    def call(self, slot, recipient):
+        if slot != '()': raise KeyError(slot)
+        return self.fn(self.arg0.primval, recipient['arg1'])
+    def list_slots(self):
+        return frozenset(['()'])
+    def show(self, prim=repr):
+        return 'PrimOp2(%r, %r)' % (self.fn, self.arg0.show(prim))
 
 class Extension(BicicletaObject):
     def __init__(self, parent, methods):
         self.parent = parent
         self.methods = methods
-    def lookup(self, key):
-        ancestor = self
-        while True:
-            try:
-                return ancestor.methods[key]
-            except KeyError:
-                ancestor = ancestor.parent
-                if ancestor is None:
-                    raise
+    def call(self, slot, recipient):
+        try:
+            method = self.methods[slot]
+        except KeyError:
+            return self.parent.call(slot, recipient)
+        else:
+            return method(recipient)
+    def list_slots(self):
+        return frozenset(self.methods.keys()) | self.parent.list_slots()
     def show(self, prim=repr):
-        return '{%s}' % ', '.join(sorted(self.deep_keys()))
+        return '{%s}' % ', '.join(sorted(self.list_slots()))
 
 
 # Primitive objects
-# TODO: make up a scheme to not build all these lambda doing: closures?
 
-def Number(n):
-    return Prim(n, number_methods)
+def Number(n): return Prim(n, number_methods)
 
 number_methods = {
-    '+':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval + doing['arg1'].primval)}),
-    '-':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval - doing['arg1'].primval)}),
-    '*':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval * doing['arg1'].primval)}),
-    '/':  lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval / doing['arg1'].primval)}),
-    '**': lambda me: Prim(None, {'()': lambda doing:
-                                 Number(me.primval ** doing['arg1'].primval)}),
-    '==': lambda me: Prim(None, {'()': lambda doing:
-                                 Claim(me.primval == doing['arg1'].primval)}),
-    '<':  lambda me: Prim(None, {'()': lambda doing: # XXX should cmp of num and string be an error?
-                                 (lambda other: Claim(other.primval is not None
-                                                      and me.primval < other.primval))(doing['arg1'])})
+    '+':  lambda me: PrimOp2(num_add, me),
+    '-':  lambda me: PrimOp2(num_sub, me),
+    '*':  lambda me: PrimOp2(num_mul, me),
+    '/':  lambda me: PrimOp2(num_div, me),
+    '**': lambda me: PrimOp2(num_pow, me),
+    '==': lambda me: PrimOp2(prim_eq, me),
+    '<':  lambda me: PrimOp2(prim_lt, me),
 }
 
-def String(s):
-    return Prim(s, string_methods)
+def num_add(v1, v2): return Number(v1 + v2.primval)
+def num_sub(v1, v2): return Number(v1 - v2.primval)
+def num_mul(v1, v2): return Number(v1 * v2.primval)
+def num_div(v1, v2): return Number(v1 / v2.primval)
+def num_pow(v1, v2): return Number(v1 ** v2.primval)
+
+def prim_eq(v1, v2):  return Claim(v1 == v2.primval)
+def prim_lt(v1, v2):  return Claim(v1 < v2.primval) # XXX num and other type be an error?
+
+def String(s): return Prim(s, string_methods)
 
 string_methods = {
-    '==': lambda me: Prim(None, {'()': lambda doing:
-                                 Claim(me.primval == doing['arg1'].primval)}),
-    '<':  lambda me: Prim(None, {'()': lambda doing:
-                                 (lambda other: Claim(other.primval is not None
-                                                      and me.primval < other.primval))(doing['arg1'])}),
-    '%':  lambda me: Prim(None, {'()': lambda doing:
-                                 String(string_substitute(me.primval, doing['arg1']))})
+    '==': lambda me: PrimOp2(prim_eq, me),
+    '<':  lambda me: PrimOp2(prim_lt, me),
+    '%':  lambda me: PrimOp2(string_substitute, me),
 }
 
 def string_substitute(template, obj):
     import re
-    return re.sub(r'{(.*?)}', lambda m: obj[m.group(1)].show(str),
-                  template)
+    return String(re.sub(r'{(.*?)}', lambda m: obj[m.group(1)].show(str),
+                         template))
 
 def Claim(value):
     assert isinstance(value, bool)
     return true_claim if value else false_claim
 
-true_claim  = Prim(None, {'if': lambda me: Prim(None, {'()': lambda picking: picking['so']})})
-false_claim = Prim(None, {'if': lambda me: Prim(None, {'()': lambda picking: picking['not']})})
+pick_so     = Prim(None, {'()': lambda picking: picking['so']})
+pick_not    = Prim(None, {'()': lambda picking: picking['not']})
+true_claim  = Prim(None, {'if': lambda me: pick_so})
+false_claim = Prim(None, {'if': lambda me: pick_not})
 
 
 # Evaluation
@@ -388,15 +392,15 @@ def timed(f):
 
 def bench2():
     tarai = make_tarai()
-    print timed(lambda: run(tarai))
+    print(timed(lambda: run(tarai)))
 
 def bench3():
     tak = make_tak()
-    print timed(lambda: run(tak))
+    print(timed(lambda: run(tak)))
 
 if __name__ == '__main__':
     bench2()
-    print timed(lambda: run(itersum3))
+    print(timed(lambda: run(itersum3)))
     fib = make_fib(20)
-    print timed(lambda: run(fib))
+    print(timed(lambda: run(fib)))
     bench3()
