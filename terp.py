@@ -22,22 +22,22 @@ def run(program):
 class BicicletaObject(dict):    # ('bob' for short)
     parent = None
     primval = None
-    def __missing__(self, key):
-        self[key] = value = self.lookup(key)(self)
+    def __missing__(self, slot):
+        self[slot] = value = self.lookup(slot)(self)
         return value
-    def deep_keys(self):
-        ancestor, keys = self, set()
+    def list_slots(self):
+        ancestor, slots = self, set()
         while ancestor is not None:
-            keys.update(ancestor.methods)
+            slots.update(ancestor.methods)
             ancestor = ancestor.parent
-        return keys
+        return slots
 
 class Prim(BicicletaObject):
     def __init__(self, primval, methods):
         self.primval = primval
         self.methods = methods
-    def lookup(self, key):
-        return self.methods[key]
+    def lookup(self, slot):
+        return self.methods[slot]
     def show(self, prim=repr):
         return prim(self.primval)
 
@@ -45,17 +45,17 @@ class Extension(BicicletaObject):
     def __init__(self, parent, methods):
         self.parent = parent
         self.methods = methods
-    def lookup(self, key):
+    def lookup(self, slot):
         ancestor = self
         while True:
             try:
-                return ancestor.methods[key]
+                return ancestor.methods[slot]
             except KeyError:
                 ancestor = ancestor.parent
                 if ancestor is None:
                     raise
     def show(self, prim=repr):
-        return '{%s}' % ', '.join(sorted(self.deep_keys()))
+        return '{%s}' % ', '.join(sorted(self.list_slots()))
 
 
 # Primitive objects
@@ -125,13 +125,13 @@ class Literal(object):
         return self.value
 
 class Call(object):
-    def __init__(self, receiver, selector):
+    def __init__(self, receiver, slot):
         self.receiver = receiver
-        self.selector = selector
+        self.slot = slot
     def __repr__(self):
-        return '%s.%s' % (self.receiver, self.selector)
+        return '%s.%s' % (self.receiver, self.slot)
     def eval(self, env):
-        return self.receiver.eval(env)[self.selector]
+        return self.receiver.eval(env)[self.slot]
 
 class Extend(object):
     def __init__(self, base, name, bindings):
@@ -227,9 +227,9 @@ def defer_funcall(bindings):       return mk_funcall, '()', bindings
 def defer_squarecall(bindings):    return mk_funcall, '[]', bindings
 def defer_infix(operator, expr):   return mk_infix, operator, expr
 
-def mk_funcall(expr, selector, bindings):
+def mk_funcall(expr, slot, bindings):
     "  foo(x=y) ==> foo{x=y}.'()'  "
-    return Call(Extend(expr, nameless(), bindings), selector)
+    return Call(Extend(expr, nameless(), bindings), slot)
 
 def mk_infix(left, operator, right):
     "   x + y ==> x.'+'(_=y)  "
