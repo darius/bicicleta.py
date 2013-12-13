@@ -61,21 +61,21 @@ class Extension(BicicletaObject):
 
 # Primitive objects
 
-def PrimOp2(fn, me):
+def PrimOp1(fn, me):
     return Prim(None, {'()': lambda doing: fn(me.primval, doing['arg1'])})
 
 class Number(Prim):
-    methods = {
-        '+':  lambda me: PrimOp2(num_add, me),
-        '-':  lambda me: PrimOp2(num_sub, me),
-        '*':  lambda me: PrimOp2(num_mul, me),
-        '/':  lambda me: PrimOp2(num_div, me),
-        '**': lambda me: PrimOp2(num_pow, me),
-        '==': lambda me: PrimOp2(prim_eq, me),
-        '<':  lambda me: PrimOp2(prim_lt, me),
-    }
     def __init__(self, n):
         self.primval = n
+    methods = {
+        '+':  lambda me: PrimOp1(num_add, me),
+        '-':  lambda me: PrimOp1(num_sub, me),
+        '*':  lambda me: PrimOp1(num_mul, me),
+        '/':  lambda me: PrimOp1(num_div, me),
+        '**': lambda me: PrimOp1(num_pow, me),
+        '==': lambda me: PrimOp1(prim_eq, me),
+        '<':  lambda me: PrimOp1(prim_lt, me),
+    }
 
 def num_add(v1, v2): return Number(v1 + v2.primval)
 def num_sub(v1, v2): return Number(v1 - v2.primval)
@@ -88,13 +88,13 @@ def prim_lt(v1, v2): return Claim(v1 < v2.primval)
 # XXX should < on different types be an error?
 
 class String(Prim):
-    methods = {
-        '==': lambda me: PrimOp2(prim_eq, me),
-        '<':  lambda me: PrimOp2(prim_lt, me),
-        '%':  lambda me: PrimOp2(string_substitute, me),
-    }
     def __init__(self, s):
         self.primval = s
+    methods = {
+        '==': lambda me: PrimOp1(prim_eq, me),
+        '<':  lambda me: PrimOp1(prim_lt, me),
+        '%':  lambda me: PrimOp1(string_substitute, me),
+    }
 
 def string_substitute(template, bob):
     import re
