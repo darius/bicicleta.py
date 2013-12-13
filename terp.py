@@ -6,14 +6,14 @@ left out some things.
 from __future__ import division
 import sys; sys.setrecursionlimit(7500)
 
-from peglet import Parser, hug
+from peglet import OneResult, Parser, hug
 
 
 # Top level
 
 def run(program):
     if isinstance(program, (str, unicode)):
-        program, = parse(program)
+        program = parse(program)
     return program.eval(initial_env).show()
 
 
@@ -237,15 +237,15 @@ def mk_infix(left, operator, right):
     "   x + y ==> x.'+'(_=y)  "
     return mk_funcall(Call(left, operator), '()', (('arg1', right),))
 
-parse = Parser(program_grammar, int=int, float=float, **globals())
+parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 
 
 # Crude tests and benchmarks
 
 ## parse("x ++ y{a=b} <*> z.foo")
-#. (@x.++{: arg1=@y{: a=@b}}.().<*>{: arg1=@z.foo}.(),)
+#. @x.++{: arg1=@y{: a=@b}}.().<*>{: arg1=@z.foo}.()
 
-## wtf, = parse("{x=42, y=55}.x")
+## wtf = parse("{x=42, y=55}.x")
 ## wtf
 #. @<>{: x=42, y=55}.x
 ## run(wtf)
@@ -254,18 +254,18 @@ parse = Parser(program_grammar, int=int, float=float, **globals())
 ## run("{y=42, x=55, z=137}.x")
 #. '55'
 
-## parse("137")[0]
+## parse("137")
 #. 137
-## parse("137[yo=dude]")[0]
+## parse("137[yo=dude]")
 #. 137{: yo=@dude}.[]
 
-## adding, = parse("137.'+' {arg1=1}.'()'")
+## adding = parse("137.'+' {arg1=1}.'()'")
 ## adding
 #. 137.+{: arg1=1}.()
 ## run(adding)
 #. '138'
 
-## run("137.5 - 2 - 1")   # N.B. associates right to left, currently
+## run("137.5 - 2 - 1")
 #. '134.5'
 
 ## run("(136 < 137).if(so=1, not=2)")
@@ -275,8 +275,8 @@ parse = Parser(program_grammar, int=int, float=float, **globals())
 ## run("137.'<' {arg1=137}.'()'.if(so=1, not=2)")
 #. '2'
 
-## cmping, = parse("(137 == 1).if(so=42, not=168)")
-## repr(cmping) == repr(parse("137.'=='{arg1=1}.'()'.if{so=42, not=168}.'()'")[0])
+## cmping = parse("(137 == 1).if(so=42, not=168)")
+## repr(cmping) == repr(parse("137.'=='{arg1=1}.'()'.if{so=42, not=168}.'()'"))
 #. True
 ## run(cmping)
 #. '168'
@@ -288,7 +288,7 @@ parse = Parser(program_grammar, int=int, float=float, **globals())
 ## run('("hello" == "hello").if(so=42, not=168)')
 #. '42'
 
-test_extend, = parse("""
+test_extend = parse("""
     {main:
      three = {me: x = 3, xx = me.x + me.x},
      four = main.three{x=4},
@@ -304,7 +304,7 @@ test_extend, = parse("""
 #. '125'
 
 def make_fac(n):
-    fac, = parse("""
+    fac = parse("""
 {env: 
  fac = {fac:   # fac for factorial
         '()' = (fac.n == 0).if(so  = 1,
@@ -319,7 +319,7 @@ fac = make_fac(4)
 #. '24'
 
 def make_fib(n):
-    fib, = parse("""
+    fib = parse("""
 {env:
  fib = {fib:
         '()' = (fib.n < 2).if(so = 1,
@@ -332,7 +332,7 @@ def make_fib(n):
 #. '8'
 
 def make_tak():
-    program, = parse("""
+    program = parse("""
 {env:
  tak = {tak: 
           '()' = (tak.y < (tak.x)).if(
@@ -347,7 +347,7 @@ def make_tak():
 def make_tarai():
     # TARAI is like TAK, but it's much faster with lazy evaluation.
     # It was Takeuchi's original function.
-    program, = parse("""
+    program = parse("""
 {env:
  tarai = {tarai: 
           '()' = (tarai.y < (tarai.x)).if(
@@ -359,7 +359,7 @@ def make_tarai():
     }.tarai(x=18, y=12, z=6)""")
     return program
 
-itersum3, = parse("""
+itersum3 = parse("""
 {env:
  outer = {outer: 
    i=0, sum=0,
