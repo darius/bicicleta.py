@@ -24,7 +24,7 @@ class BicicletaObject(dict):    # ('bob' for short)
     parent = None
     primval = None
     def __missing__(self, slot):
-        self[slot] = value = self.lookup(slot)(self)
+        value = self[slot] = self.lookup(slot)(self)
         return value
     def list_slots(self):
         ancestor, slots = self, set()
