@@ -104,8 +104,10 @@ def Claim(value):
     assert isinstance(value, bool)
     return true_claim if value else false_claim
 
-true_claim  = Prim(None, {'if': lambda me: Prim(None, {'()': lambda picking: picking['so']})})
-false_claim = Prim(None, {'if': lambda me: Prim(None, {'()': lambda picking: picking['not']})})
+pick_so     = Prim(None, {'()': lambda picking: picking['so']})
+pick_not    = Prim(None, {'()': lambda picking: picking['not']})
+true_claim  = Prim(None, {'if': lambda me: pick_so})
+false_claim = Prim(None, {'if': lambda me: pick_not})
 
 
 # Evaluation
