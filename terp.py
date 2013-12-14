@@ -210,7 +210,7 @@ def make_slot_thunk(name, expr, env):
         return expr.eval(new_env)
     return thunk
 
-initial_env = {'<>': Prim(None, {})}
+initial_env = {}
 
 
 # Parser
@@ -261,7 +261,10 @@ _           = (?:\s|#.*)*
 # TODO: support backslashes in '' and ""
 # TODO: foo(name: x=y) [if actually wanted]
 
-def empty(): return VarRef('<>')
+base_bob = Prim(None, {})
+base_literal = Literal(base_bob)
+
+def empty(): return base_literal
 def nameless(): return None
 def positional(): return None
 
@@ -296,7 +299,7 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 
 ## wtf = parse("{x=42, y=55}.x")
 ## wtf
-#. <>{x=42, y=55}.x
+#. None{x=42, y=55}.x
 ## run(wtf)
 #. '42'
 
@@ -366,7 +369,7 @@ def make_fac(n):
 
 fac = make_fac(4)
 ## fac
-#. <>{env: fac=<>{fac: ()=fac.n.=={arg1=0}.().if{so=1, not=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
+#. None{env: fac=None{fac: ()=fac.n.=={arg1=0}.().if{so=1, not=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
 ## run(fac)
 #. '24'
 
