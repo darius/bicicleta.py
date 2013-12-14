@@ -24,8 +24,11 @@ class BicicletaObject(dict):    # ('bob' for short)
     parent = None
     primval = None
     def __missing__(self, slot):
-        value = self[slot] = self.lookup(slot)(self)
+        method, ancestor = self.lookup(slot)
+        value = self[slot] = method(ancestor, self)
         return value
+    def lookup(self, slot):
+        return self.methods[slot], self
     def list_slots(self):
         ancestor, slots = self, set()
         while ancestor is not None:
@@ -37,10 +40,21 @@ class Prim(BicicletaObject):
     def __init__(self, primval, methods):
         self.primval = primval
         self.methods = methods
-    def lookup(self, slot):
-        return self.methods[slot]
     def show(self, prim=repr):
         return prim(self.primval)
+
+class PrimOp(BicicletaObject):
+    def __init__(self, ancestor, arg0):
+        self.pv = ancestor.primval
+        self.arg0 = arg0
+    def show(self, prim=repr):
+        return "%s.'%s'" % (self.arg0.show(prim), self.name)
+
+class BarePrimOp(PrimOp):
+    def __init__(self, ancestor, arg0):
+        self.pv = ancestor.primval
+    def show(self, prim=repr):
+        return "%r.'%s'" % (self.pv, self.op)
 
 class Extension(BicicletaObject):
     def __init__(self, parent, methods):
@@ -50,7 +64,7 @@ class Extension(BicicletaObject):
         ancestor = self
         while True:
             try:
-                return ancestor.methods[slot]
+                return ancestor.methods[slot], ancestor
             except KeyError:
                 ancestor = ancestor.parent
                 if ancestor is None:
@@ -61,54 +75,76 @@ class Extension(BicicletaObject):
 
 # Primitive objects
 
-def PrimOp1(me, fn):
-    return Prim(None, {'()': lambda doing: fn(me.primval, doing['arg1'])})
+class PrimAdd(BarePrimOp):
+    name, methods = '+', {
+        '()': lambda self, doing: Number(self.pv + doing['arg1'].primval)
+    }
+class PrimSub(BarePrimOp):
+    name, methods = '-', {
+        '()': lambda self, doing: Number(self.pv - doing['arg1'].primval)
+    }
+class PrimMul(BarePrimOp):
+    name, methods = '*', {
+        '()': lambda self, doing: Number(self.pv * doing['arg1'].primval)
+    }
+class PrimDiv(BarePrimOp):
+    name, methods = '/', {
+        '()': lambda self, doing: Number(self.pv / doing['arg1'].primval)
+    }
+class PrimPow(BarePrimOp):
+    name, methods = '**', {
+        '()': lambda self, doing: Number(self.pv ** doing['arg1'].primval)
+    }
+
+class PrimEq(BarePrimOp):     # XXX cmp ops need to deal with overriding
+    name, methods = '==', {
+        '()': lambda self, doing: Claim(self.pv == doing['arg1'].primval)
+    }
+class PrimLt(BarePrimOp):
+    name, methods = '<', {
+        '()': lambda self, doing: Claim(self.pv < doing['arg1'].primval)
+    }
 
 class Number(Prim):
     def __init__(self, n):
         self.primval = n
     methods = {
-        '+':  lambda me: PrimOp1(me, num_add),
-        '-':  lambda me: PrimOp1(me, num_sub),
-        '*':  lambda me: PrimOp1(me, num_mul),
-        '/':  lambda me: PrimOp1(me, num_div),
-        '**': lambda me: PrimOp1(me, num_pow),
-        '==': lambda me: PrimOp1(me, prim_eq),
-        '<':  lambda me: PrimOp1(me, prim_lt),
+        '+':  PrimAdd,
+        '-':  PrimSub,
+        '*':  PrimMul,
+        '/':  PrimDiv,
+        '**': PrimPow,
+        '==': PrimEq,
+        '<':  PrimLt,
     }
 
-def num_add(v1, v2): return Number(v1 + v2.primval)
-def num_sub(v1, v2): return Number(v1 - v2.primval)
-def num_mul(v1, v2): return Number(v1 * v2.primval)
-def num_div(v1, v2): return Number(v1 / v2.primval)
-def num_pow(v1, v2): return Number(v1 ** v2.primval)
-
-def prim_eq(v1, v2): return Claim(v1 == v2.primval)
-def prim_lt(v1, v2): return Claim(v1 < v2.primval)
-# XXX should < on different types be an error?
+class PrimStringSubst(BarePrimOp):
+    name, methods = '%', {
+        '()': lambda self, doing: String(string_substitute(self.pv,
+                                                           doing['arg1']))
+    }
+def string_substitute(template, bob):
+    import re
+    return re.sub(r'{(.*?)}', lambda m: bob[m.group(1)].show(str),
+                  template)
 
 class String(Prim):
     def __init__(self, s):
         self.primval = s
     methods = {
-        '==': lambda me: PrimOp1(me, prim_eq),
-        '<':  lambda me: PrimOp1(me, prim_lt),
-        '%':  lambda me: PrimOp1(me, string_substitute),
+        '==': PrimEq,
+        '<':  PrimLt,
+        '%':  PrimStringSubst,
     }
-
-def string_substitute(template, bob):
-    import re
-    return String(re.sub(r'{(.*?)}', lambda m: bob[m.group(1)].show(str),
-                         template))
 
 def Claim(value):
     assert isinstance(value, bool)
     return true_claim if value else false_claim
 
-true_claim  = Prim(None, {'if': lambda me: pick_so})
-false_claim = Prim(None, {'if': lambda me: pick_not})
-pick_so     = Prim(None, {'()': lambda doing: doing['so']})
-pick_not    = Prim(None, {'()': lambda doing: doing['not']})
+true_claim  = Prim(None, {'if': lambda _, me: pick_so})
+false_claim = Prim(None, {'if': lambda _, me: pick_not})
+pick_so     = Prim(None, {'()': lambda _, doing: doing['so']})
+pick_not    = Prim(None, {'()': lambda _, doing: doing['not']})
 
 
 # Evaluation
@@ -165,12 +201,12 @@ class SelflessExtend(Extend):
                           for slot, expr in self.bindings})
 
 def make_selfless_slot_thunk(expr, env):
-    return lambda _: expr.eval(env)
+    return lambda _, __: expr.eval(env)
 
 def make_slot_thunk(name, expr, env):
-    def thunk(rcvr):
+    def thunk(_, receiver):
         new_env = dict(env)
-        new_env[name] = rcvr
+        new_env[name] = receiver
         return expr.eval(new_env)
     return thunk
 
@@ -315,6 +351,9 @@ test_extend = parse("""
 #. "'hey 42.0 and 137'"
 ## run("5**3")
 #. '125'
+
+## run("5{}*6")
+#. '30'
 
 def make_fac(n):
     fac = parse("""
