@@ -43,7 +43,7 @@ def run(program, prim=repr):
 #. '{()}'
 ## core.Number(5)['succ'].show()
 #. '6'
-## core.Extension(core.String('yo')['++'], {'arg1': lambda a, b: core.String('zz')})['()'].show()
+## core.Bob(core.String('yo')['++'], {'arg1': lambda a, b: core.String('zz')})['()'].show()
 #. "'yozz'"
 ## run('"hey" ++ "dude"', prim=str)
 #. 'heydude'
