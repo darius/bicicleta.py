@@ -20,15 +20,26 @@ def run(program):
 
 # Objects
 
-class BicicletaObject(dict):    # ('bob' for short)
+class Bob(dict):    # (short for 'Bicicleta object')
     parent = None
     primval = None
+    def __init__(self, parent, methods):
+        self.parent = parent
+        self.methods = methods
     def __missing__(self, slot):
-        method, ancestor = self.lookup(slot)
-        value = self[slot] = method(ancestor, self)
-        return value
-    def lookup(self, slot):
-        return self.methods[slot], self
+        ancestor = self
+        while True:
+            try:
+                method = ancestor.methods[slot]
+            except KeyError:
+                ancestor = ancestor.parent
+                if ancestor is None:
+                    raise
+            else:
+                value = self[slot] = method(ancestor, self)
+                return value
+    def show(self, prim=repr):
+        return '{%s}' % ', '.join(sorted(self.list_slots()))
     def list_slots(self):
         ancestor, slots = self, set()
         while ancestor is not None:
@@ -36,41 +47,18 @@ class BicicletaObject(dict):    # ('bob' for short)
             ancestor = ancestor.parent
         return slots
 
-class Prim(BicicletaObject):
+class Prim(Bob):
     def __init__(self, primval, methods):
         self.primval = primval
         self.methods = methods
     def show(self, prim=repr):
         return prim(self.primval)
 
-class PrimOp(BicicletaObject):
-    def __init__(self, ancestor, arg0):
-        self.pv = ancestor.primval
-        self.arg0 = arg0
-    def show(self, prim=repr):
-        return "%s.'%s'" % (self.arg0.show(prim), self.name)
-
-class BarePrimOp(PrimOp):
+class BarePrimOp(Bob):
     def __init__(self, ancestor, arg0):
         self.pv = ancestor.primval
     def show(self, prim=repr):
         return "%r.'%s'" % (self.pv, self.op)
-
-class Extension(BicicletaObject):
-    def __init__(self, parent, methods):
-        self.parent = parent
-        self.methods = methods
-    def lookup(self, slot):
-        ancestor = self
-        while True:
-            try:
-                return ancestor.methods[slot], ancestor
-            except KeyError:
-                ancestor = ancestor.parent
-                if ancestor is None:
-                    raise
-    def show(self, prim=repr):
-        return '{%s}' % ', '.join(sorted(self.list_slots()))
 
 
 # Primitive objects
@@ -146,6 +134,8 @@ false_claim = Prim(None, {'if': lambda _, me: pick_else})
 pick_so     = Prim(None, {'()': lambda _, doing: doing['so']})
 pick_else   = Prim(None, {'()': lambda _, doing: doing['else']})
 
+root_bob = Prim(None, {})
+
 
 # Evaluation
 
@@ -190,15 +180,15 @@ class Extend(object):
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
     def eval(self, env):
-        return Extension(self.base.eval(env),
-                         {slot: make_slot_thunk(self.name, expr, env)
-                          for slot, expr in self.bindings})
+        return Bob(self.base.eval(env),
+                   {slot: make_slot_thunk(self.name, expr, env)
+                    for slot, expr in self.bindings})
 
 class SelflessExtend(Extend):
     def eval(self, env):
-        return Extension(self.base.eval(env),
-                         {slot: make_selfless_slot_thunk(expr, env)
-                          for slot, expr in self.bindings})
+        return Bob(self.base.eval(env),
+                   {slot: make_selfless_slot_thunk(expr, env)
+                    for slot, expr in self.bindings})
 
 def make_selfless_slot_thunk(expr, env):
     return lambda _, __: expr.eval(env)
@@ -261,7 +251,7 @@ _           = (?:\s|#.*)*
 # TODO: support backslashes in '' and ""
 # TODO: foo(name: x=y) [if actually wanted]
 
-empty_literal = Literal(Prim(None, {}))
+empty_literal = Literal(root_bob)
 
 def empty(): return empty_literal
 def nameless(): return None
