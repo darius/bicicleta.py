@@ -261,10 +261,9 @@ _           = (?:\s|#.*)*
 # TODO: support backslashes in '' and ""
 # TODO: foo(name: x=y) [if actually wanted]
 
-base_bob = Prim(None, {})
-base_literal = Literal(base_bob)
+empty_literal = Literal(Prim(None, {}))
 
-def empty(): return base_literal
+def empty(): return empty_literal
 def nameless(): return None
 def positional(): return None
 
