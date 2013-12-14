@@ -142,9 +142,9 @@ def Claim(value):
     return true_claim if value else false_claim
 
 true_claim  = Prim(None, {'if': lambda _, me: pick_so})
-false_claim = Prim(None, {'if': lambda _, me: pick_not})
+false_claim = Prim(None, {'if': lambda _, me: pick_else})
 pick_so     = Prim(None, {'()': lambda _, doing: doing['so']})
-pick_not    = Prim(None, {'()': lambda _, doing: doing['not']})
+pick_else   = Prim(None, {'()': lambda _, doing: doing['else']})
 
 
 # Evaluation
@@ -319,24 +319,24 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 ## run("137.5 - 2 - 1")
 #. '134.5'
 
-## run("(136 < 137).if(so=1, not=2)")
+## run("(136 < 137).if(so=1, else=2)")
 #. '1'
-## run("(137 < 137).if(so=1, not=2)")
+## run("(137 < 137).if(so=1, else=2)")
 #. '2'
-## run("137.'<' {arg1=137}.'()'.if(so=1, not=2)")
+## run("137.'<' {arg1=137}.'()'.if(so=1, else=2)")
 #. '2'
 
-## cmping = parse("(137 == 1).if(so=42, not=168)")
-## repr(cmping) == repr(parse("137.'=='{arg1=1}.'()'.if{so=42, not=168}.'()'"))
+## cmping = parse("(137 == 1).if(so=42, else=168)")
+## repr(cmping) == repr(parse("137.'=='{arg1=1}.'()'.if{so=42, else=168}.'()'"))
 #. True
 ## run(cmping)
 #. '168'
 
 ## run('"howdy"')
 #. "'howdy'"
-## run('("hello" == "aloha").if(so=42, not=168)')
+## run('("hello" == "aloha").if(so=42, else=168)')
 #. '168'
-## run('("hello" == "hello").if(so=42, not=168)')
+## run('("hello" == "hello").if(so=42, else=168)')
 #. '42'
 
 test_extend = parse("""
@@ -361,14 +361,14 @@ def make_fac(n):
     fac = parse("""
 {env: 
  fac = {fac:   # fac for factorial
-        '()' = (fac.n == 0).if(so  = 1,
-                               not = fac.n * env.fac(n = fac.n-1))}
+        '()' = (fac.n == 0).if(so = 1,
+                               else = fac.n * env.fac(n = fac.n-1))}
 }.fac(n=%d)""" % n)
     return fac
 
 fac = make_fac(4)
 ## fac
-#. None{env: fac=None{fac: ()=fac.n.=={arg1=0}.().if{so=1, not=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
+#. None{env: fac=None{fac: ()=fac.n.=={arg1=0}.().if{so=1, else=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
 ## run(fac)
 #. '24'
 
@@ -377,80 +377,10 @@ def make_fib(n):
 {env:
  fib = {fib:
         '()' = (fib.n < 2).if(so = 1,
-                              not = env.fib(n=fib.n-1) + env.fib(n=fib.n-2))}
+                              else = env.fib(n=fib.n-1) + env.fib(n=fib.n-2))}
 }.fib(n=%d)
     """ % n)
     return fib
 
 ## run(make_fib(5))
 #. '8'
-
-def make_tak():
-    program = parse("""
-{env:
- tak = {tak: 
-          '()' = (tak.y < (tak.x)).if(
-              so = env.tak(x=env.tak(x=tak.x-1, y=tak.y, z=tak.z),
-                           y=env.tak(x=tak.y-1, y=tak.z, z=tak.x),
-                           z=env.tak(x=tak.z-1, y=tak.x, z=tak.y)),
-              not = tak.z)
-         }
-    }.tak(x=18, y=12, z=6)""")
-    return program
-
-def make_tarai():
-    # TARAI is like TAK, but it's much faster with lazy evaluation.
-    # It was Takeuchi's original function.
-    program = parse("""
-{env:
- tarai = {tarai: 
-          '()' = (tarai.y < (tarai.x)).if(
-              so = env.tarai(x=env.tarai(x=tarai.x-1, y=tarai.y, z=tarai.z),
-                             y=env.tarai(x=tarai.y-1, y=tarai.z, z=tarai.x),
-                             z=env.tarai(x=tarai.z-1, y=tarai.x, z=tarai.y)),
-              not = tarai.y)
-         }
-    }.tarai(x=18, y=12, z=6)""")
-    return program
-
-itersum3 = parse("""
-{env:
- outer = {outer: 
-   i=0, sum=0,
-   '()' = (outer.i == 0).if(
-       so = outer.sum,
-       not = env.outer(i=outer.i-1, sum=outer.sum + env.mid(i=outer.i)))},
- mid = {mid: 
-   i=0, sum=0,
-   '()' = (mid.i == 0).if(
-       so = mid.sum,
-       not = env.mid(i=mid.i-1, sum=mid.sum + env.inner(i=mid.i)))},
- inner = {inner:
-   i=0, sum=0,
-   '()' = (inner.i == 0).if(
-       so = inner.sum,
-       not = env.inner(i=inner.i-1, sum=inner.sum + inner.i))},
- main = env.outer(i = 40)
-}.main
-""")
-
-def timed(f):
-    import time
-    start = time.clock()
-    result = f()
-    return time.clock() - start, result
-
-def bench2():
-    tarai = make_tarai()
-    print(timed(lambda: run(tarai)))
-
-def bench3():
-    tak = make_tak()
-    print(timed(lambda: run(tak)))
-
-if __name__ == '__main__':
-    bench2()
-    print(timed(lambda: run(itersum3)))
-    fib = make_fib(20)
-    print(timed(lambda: run(fib)))
-    bench3()
