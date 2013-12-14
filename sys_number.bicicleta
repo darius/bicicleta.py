@@ -1,0 +1,4 @@
+{me:
+  pred = me - 1
+  succ = me + 1
+}

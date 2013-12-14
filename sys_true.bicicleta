@@ -1,0 +1,8 @@
+{
+# if  = {doing: '()' = doing.so}
+
+  not = sys.false
+  '&' = {doing: '()' = doing.arg1}
+  '|' = {       '()' = sys.true}
+  str = "true"
+}

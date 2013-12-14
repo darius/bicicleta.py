@@ -1,0 +1,27 @@
+{
+  empty = {
+    is_empty = sys.true
+    length   = 0
+    '++'     = {appending: '()' = appending.arg1}
+    foldr    = {folding: '()' = folding.if_empty}
+    map      = {'()' = sys.empty}
+    str      = "()"
+  }
+
+  cons = {list:
+    is_empty = sys.false
+    length   = 1 + list.rest.length
+    '++'     = {appending:
+      '()' = sys.cons {first = list.first
+                       rest = list.rest ++ appending.arg1}}
+    foldr = {folding:
+      '()' = folding.if_cons(list.first
+                             list.rest.foldr(if_empty=folding.if_empty
+                                             if_cons=folding.if_cons))
+    }
+    map = {mapping:
+      '()' = sys.cons {first = mapping.arg1(list.first)
+                       rest = list.rest.map(mapping.arg1)}}
+    str = "(" ++ list.first.str ++ ":" ++ list.rest.str ++ ")"
+  }
+}

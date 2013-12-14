@@ -1,0 +1,4 @@
+{string:
+  '++' = {appending:
+    '()' = "{me}{arg1}" % appending{me=string}}
+}
