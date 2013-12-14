@@ -1,5 +1,16 @@
 """
-The interpreter plus standard library.
+The interpreter plus standard library. Design goals:
+
+  * Keep core.py self-contained and unit testable.
+  * Extend the primitives, root object, and environment 
+    with conveniences written conveniently in interpreted code.
+  * Avoid slowing down the core.py primitives.
+
+We do this by mutating the core.py method tables, which is icky.
+Maybe doing everything by extension wouldn't hurt speed much, though I
+haven't tried it.
+
+TODO: add some interpreted miranda methods too.
 """
 
 import core
