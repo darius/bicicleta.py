@@ -50,3 +50,5 @@ def run(program, prim=repr):
 
 ## run('sys.cons {first=5, rest=sys.empty}')
 #. '(5:())'
+## run('sys.cons{first=5, rest=sys.cons{first="hi", rest=sys.empty}}.length')
+#. '2'
