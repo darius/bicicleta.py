@@ -15,7 +15,7 @@ from peglet import OneResult, Parser, hug
 def run(program):
     if isinstance(program, str):
         program = parse(program)
-    return program.eval(initial_env).show()
+    return program.eval(empty_env).show()
 
 
 # Objects
@@ -210,7 +210,7 @@ def make_slot_thunk(name, expr, env):
         return expr.eval(new_env)
     return thunk
 
-initial_env = {}
+empty_env = {}
 
 
 # Parser
