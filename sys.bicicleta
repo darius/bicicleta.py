@@ -5,6 +5,7 @@
     '++'     = {appending: '()' = appending.arg1}
     foldr    = {folding: '()' = folding.if_empty}
     map      = {'()' = sys.empty}
+    repr     = "()"
     str      = "()"
   }
 
@@ -22,6 +23,7 @@
     map = {mapping:
       '()' = sys.cons {first = mapping.arg1(list.first)
                        rest = list.rest.map(mapping.arg1)}}
-    str = "(" ++ list.first.str ++ ":" ++ list.rest.str ++ ")"
+    repr = "(" ++ list.first.repr ++ ":" ++ list.rest.repr ++ ")"
+    str  = "(" ++ list.first.str ++ ":" ++ list.rest.str ++ ")"
   }
 }

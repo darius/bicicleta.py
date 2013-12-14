@@ -47,3 +47,6 @@ def run(program, prim=repr):
 #. "'yozz'"
 ## run('"hey" ++ "dude"', prim=str)
 #. 'heydude'
+
+## run('sys.cons {first=5, rest=sys.empty}')
+#. '(5:())'
