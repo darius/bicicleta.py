@@ -70,6 +70,11 @@ class Prim(Bob):
         self.primval = primval
         self.methods = methods
 
+class PrimOp(Bob):
+    def __init__(self, ancestor, arg0):
+        self.ancestor = ancestor
+        self.arg0 = arg0
+
 class BarePrimOp(Bob):
     def __init__(self, ancestor, arg0):
         self.pv = ancestor.primval
@@ -77,10 +82,22 @@ class BarePrimOp(Bob):
 
 # Primitive objects
 
-class PrimAdd(BarePrimOp):
+def prim_add(self, doing):
+    arg1 = doing['arg1']
+    if isinstance(arg1.primval, number_type):
+        return Number(self.ancestor.primval + arg1.primval)
+    else:
+        return Bob(arg1['add_to'], {'arg1': lambda _, __: self.arg0})['()']
+
+class PrimAdd(PrimOp):
     name, methods = '+', {
-        '()': lambda self, doing: Number(self.pv + doing['arg1'].primval)
+        '()': prim_add
     }
+
+# The other arith ops should also do double dispatching, but for now here
+# they are unconverted, since mainly I wanted to make sure it'd work, and
+# I don't know what Kragen wants in detail.
+
 class PrimSub(BarePrimOp):
     name, methods = '-', {
         '()': lambda self, doing: Number(self.pv - doing['arg1'].primval)

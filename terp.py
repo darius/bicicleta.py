@@ -52,3 +52,10 @@ def run(program, prim=repr):
 #. '(5:())'
 ## run('sys.cons{first=5, rest=sys.cons{first="hi", rest=sys.empty}}.length')
 #. '2'
+
+## run('sys.vector{elements = sys.cons {first=5, rest=sys.empty}}')
+#. '[(5:())]'
+## run('sys.vector{elements = sys.cons {first=5, rest=sys.empty}}.add_to(17)')
+#. '[(22:())]'
+## run('7 + sys.vector{elements = sys.cons {first=5, rest=sys.empty}}')
+#. '[(12:())]'
