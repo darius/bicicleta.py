@@ -151,7 +151,7 @@ true_claim  = Prim(None, {
     'str':  lambda _, me: String('true'),
 })
 false_claim = Prim(None, {
-    'if': lambda _, me: pick_else,
+    'if':   lambda _, me: pick_else,
     'repr': lambda _, me: String('false'),
     'str':  lambda _, me: String('false'),
 })
