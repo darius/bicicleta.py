@@ -13,7 +13,7 @@ from peglet import OneResult, Parser, hug
 # Top level
 
 def run(program):
-    if isinstance(program, str):
+    if isinstance(program, string_type):
         program = parse(program)
     return program.eval(empty_env).show()
 
@@ -31,34 +31,48 @@ class Bob(dict):    # (short for 'Bicicleta object')
         while True:
             try:
                 method = ancestor.methods[slot]
+                break
             except KeyError:
+                if ancestor.parent is None:
+                    method = miranda_methods[slot]
+                    break
                 ancestor = ancestor.parent
-                if ancestor is None:
-                    raise
-            else:
-                value = self[slot] = method(ancestor, self)
-                return value
+        value = self[slot] = method(ancestor, self)
+        return value
     def show(self, prim=repr):
-        return '{%s}' % ', '.join(sorted(self.list_slots()))
+        result = self['repr' if prim is repr else 'str']
+        return result.primval if isinstance(result, String) else '<bob>'
     def list_slots(self):
         ancestor, slots = self, set()
-        while ancestor is not None:
+        while ancestor is not None and ancestor.primval is None:
             slots.update(ancestor.methods)
             ancestor = ancestor.parent
         return slots
+
+miranda_methods = {
+    'is_number': lambda ancestor, self: false_claim,
+    'is_string': lambda ancestor, self: false_claim,
+    'repr':      lambda ancestor, self: miranda_show(ancestor.primval, repr, self),
+    'str':       lambda ancestor, self: miranda_show(ancestor.primval, str, self),
+}
+
+number_type = (int, float)
+string_type = str               # XXX or unicode, in python2
+
+def miranda_show(primval, prim_to_str, bob):
+    shown = '' if primval is None else prim_to_str(primval)
+    slots = bob.list_slots()
+    if slots: shown += '{' + ', '.join(sorted(slots)) + '}' 
+    return String(shown)
 
 class Prim(Bob):
     def __init__(self, primval, methods):
         self.primval = primval
         self.methods = methods
-    def show(self, prim=repr):
-        return prim(self.primval)
 
 class BarePrimOp(Bob):
     def __init__(self, ancestor, arg0):
         self.pv = ancestor.primval
-    def show(self, prim=repr):
-        return "%r.'%s'" % (self.pv, self.op)
 
 
 # Primitive objects
@@ -97,6 +111,7 @@ class Number(Prim):
     def __init__(self, n):
         self.primval = n
     methods = {
+        'is_number': lambda _, me: true_claim,
         '+':  PrimAdd,
         '-':  PrimSub,
         '*':  PrimMul,
@@ -120,6 +135,7 @@ class String(Prim):
     def __init__(self, s):
         self.primval = s
     methods = {
+        'is_string': lambda _, me: true_claim,
         '==': PrimEq,
         '<':  PrimLt,
         '%':  PrimStringSubst,
@@ -129,8 +145,16 @@ def Claim(value):
     assert isinstance(value, bool)
     return true_claim if value else false_claim
 
-true_claim  = Prim(None, {'if': lambda _, me: pick_so})
-false_claim = Prim(None, {'if': lambda _, me: pick_else})
+true_claim  = Prim(None, {
+    'if':   lambda _, me: pick_so,
+    'repr': lambda _, me: String('true'), # XXX this is kind of awful
+    'str':  lambda _, me: String('true'),
+})
+false_claim = Prim(None, {
+    'if': lambda _, me: pick_else,
+    'repr': lambda _, me: String('false'),
+    'str':  lambda _, me: String('false'),
+})
 pick_so     = Prim(None, {'()': lambda _, doing: doing['so']})
 pick_else   = Prim(None, {'()': lambda _, doing: doing['else']})
 
@@ -288,7 +312,7 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 
 ## wtf = parse("{x=42, y=55}.x")
 ## wtf
-#. None{x=42, y=55}.x
+#. {x=42, y=55}.x
 ## run(wtf)
 #. '42'
 
@@ -347,6 +371,11 @@ test_extend = parse("""
 ## run("5{}*6")
 #. '30'
 
+## run("5.is_string")
+#. 'false'
+## run("5.is_number")
+#. 'true'
+
 def make_fac(n):
     fac = parse("""
 {env: 
@@ -358,7 +387,7 @@ def make_fac(n):
 
 fac = make_fac(4)
 ## fac
-#. None{env: fac=None{fac: ()=fac.n.=={arg1=0}.().if{so=1, else=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
+#. {env: fac={fac: ()=fac.n.=={arg1=0}.().if{so=1, else=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
 ## run(fac)
 #. '24'
 
