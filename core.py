@@ -4,6 +4,7 @@ left out some things.
 """
 
 from __future__ import division
+from __future__ import print_function
 from functools import reduce
 
 from peglet import OneResult, Parser, hug
@@ -11,16 +12,32 @@ from peglet import OneResult, Parser, hug
 
 # Top level
 
-def trampoline(state):
+def stepping(program):
+    return run(program, loud=True)
+
+def trampoline(state, loud=False):
     k, arg = state
-    while k:
-        k, arg = k[0](arg, *k)
+    if loud:
+        while k:
+            whats_bouncing(k, arg)
+            print('')
+            k, arg = k[0](arg, *k)
+    else:
+        while k:
+            k, arg = k[0](arg, *k)
     return arg
 
-def run(program):
+def whats_bouncing(k, arg):
+    print(':', arg)
+    while k:
+        print(k[0].__name__, '\t', *k[1:-1])
+        k = k[-1]
+
+def run(program, loud=False):
     if isinstance(program, string_type):
         program = parse(program)
-    return trampoline(program.eval(empty_env, (show_k, None)))
+    return trampoline(program.eval(empty_env, (show_k, None)),
+                      loud)
 
 def show_k(result, _, k): return result.show(repr, k)
 
