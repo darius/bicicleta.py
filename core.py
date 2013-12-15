@@ -177,25 +177,20 @@ class Number(Prim):
         '<':  primop_method(PrimLt),
     }
 
-# XXX not trampolined yet
-class PrimStringSubst(BarePrimOp):
-    name, arg1_k = '%', {
-        '()': lambda self, doing: String(string_substitute(self.pv,
-                                                           doing['arg1']))
-    }
-def string_substitute(template, bob):
-    import re
-    return re.sub(r'{(.*?)}', lambda m: bob[m.group(1)].show(str),
-                  template)
+def string_cat_k(arg1, _, self, k): return k, String(self.pv + arg1.primval)
+class StringCat(BarePrimOp): name, arg1_k = '++', staticmethod(string_cat_k)
 
 class String(Prim):
     def __init__(self, s):
         self.primval = s
     methods = {
         'is_string': lambda _, me, k: (k, true_claim),
+        'is_empty':  lambda ancestor, me, k: (k, Claim(ancestor.primval == '')),
+        'first':     lambda ancestor, me, k: (k, String(ancestor.primval[0])),
+        'rest':      lambda ancestor, me, k: (k, String(ancestor.primval[1:])),
         '==': primop_method(PrimEq),
         '<':  primop_method(PrimLt),
-#        '%':  PrimStringSubst,
+        '++': primop_method(StringCat),
     }
 
 def Claim(value):
@@ -440,7 +435,8 @@ test_extend = parse("""
 ## run(test_extend)
 #. '14'
 
-# XXX
+## run('"hey " ++ 42.str ++ " and " ++ (1136+1).str.rest')
+#. "'hey 42 and 137'"
 # run('"hey {x} and {why}" % {x=84/2, why=136+1}')
 ## run("5**3")
 #. '125'
