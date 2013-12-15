@@ -23,6 +23,7 @@ def extend_in_place(bob, overlay):
     # TODO: deep copy? Shallow is all we need for now.
     for slot, method in overlay.methods.items():
         assert slot not in bob
+        assert slot not in bob.methods, (slot, bob)
         bob.methods[slot] = method
 
 def load(filename):
@@ -41,21 +42,25 @@ extend_in_place(core.Number(42), load('sys_number.bicicleta'))
 extend_in_place(core.String('hi'), load('sys_string.bicicleta'))
 extend_in_place(sys_bob, load('sys.bicicleta'))
 
-def run(text, prim=repr):
+def run(text):
     program = core.parse(text)
     return core.trampoline(program.eval(global_env, (core.show_k, None)))
 
 ## run('5')
+#. '5'
 ## run('5+6')
+#. '11'
 
-## run('"hey" ++ "dude"', prim=str)
-#. 'heydude'
+## run('"hey" ++ "dude"')
+#. "'heydude'"
 
 ## run('sys.cons {first=5, rest=sys.empty}')
 #. '(5:())'
 ## run('sys.cons{first=5, rest=sys.cons{first="hi", rest=sys.empty}}.length')
 #. '2'
 
+## run('sys.vector{elements = sys.empty}')
+#. '[()]'
 ## run('sys.vector{elements = sys.cons {first=5, rest=sys.empty}}')
 #. '[(5:())]'
 ## run('sys.vector{elements = sys.cons {first=5, rest=sys.empty}}.add_to(17)')
