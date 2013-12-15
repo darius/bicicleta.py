@@ -1,4 +1,23 @@
 {string:
-  '++' = {appending:
-    '()' = "{me}{arg1}" % appending{me=string}}
+  '%' = {subbing:
+    '()' = string.is_empty .if(
+             so = ""
+             else = (string.first == "{") .if(
+                      so = {chopping:
+                              result = (sys.meta.call(subbing.arg1, chopping.chopped.head).str
+                                        ++ (chopping.chopped.tail % subbing.arg1))
+                              chopped = chopping.chop(s = string.rest)
+                              chop = {scanning:
+                                       '()' = (scanning.s.first == "}") .if(
+                                                so = {head="", tail=scanning.s.rest}
+                                                else = {whee:
+                                                         chop_rest = chopping.chop(s = scanning.s.rest)
+                                                         head = scanning.s.first ++ whee.chop_rest.head
+                                                         tail = whee.chop_rest.tail})
+                                     }(s = string.rest)
+                           }.result
+                      else = string.first ++ (string.rest % subbing.arg1)
+                    )
+           )
+  }
 }
