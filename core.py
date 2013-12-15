@@ -177,7 +177,9 @@ class Number(Prim):
         '<':  primop_method(PrimLt),
     }
 
-def string_cat_k(arg1, _, self, k): return k, String(self.pv + arg1.primval)
+def string_cat_k(arg1, _, self, k):
+    assert isinstance(arg1.primval, string_type), arg1
+    return k, String(self.pv + arg1.primval)
 class StringCat(BarePrimOp): name, arg1_k = '++', staticmethod(string_cat_k)
 
 class String(Prim):
