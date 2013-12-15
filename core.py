@@ -4,7 +4,6 @@ left out some things.
 """
 
 from __future__ import division
-import sys; sys.setrecursionlimit(7500)
 from functools import reduce
 
 from peglet import OneResult, Parser, hug
@@ -12,21 +11,26 @@ from peglet import OneResult, Parser, hug
 
 # Top level
 
+def trampoline(state):
+    k, arg = state
+    while k:
+        k, arg = k[0](arg, *k)
+    return arg
+
 def run(program):
     if isinstance(program, string_type):
         program = parse(program)
-    return program.eval(empty_env).show()
+    return trampoline(program.eval(empty_env, (show_k, None)))
+
+def show_k(result, _, k): return result.show(repr, k)
 
 
 # Objects
 
-class Bob(dict):    # (short for 'Bicicleta object')
-    parent = None
-    primval = None
-    def __init__(self, parent, methods):
-        self.parent = parent
-        self.methods = methods
-    def __missing__(self, slot):
+def call(self, slot, k):
+    try:
+        value = self[slot]
+    except KeyError:
         ancestor = self
         while True:
             try:
@@ -37,11 +41,25 @@ class Bob(dict):    # (short for 'Bicicleta object')
                     method = miranda_methods[slot]
                     break
                 ancestor = ancestor.parent
-        value = self[slot] = method(ancestor, self)
-        return value
-    def show(self, prim=repr):
-        result = self['repr' if prim is repr else 'str']
-        return result.primval if isinstance(result, String) else '<bob>'
+        return method(ancestor, self, (cache_slot_k, self, slot, k))
+    else:
+        return k, value
+
+def cache_slot_k(value, _, self, slot, k):
+    self[slot] = value
+    return k, value
+
+class Bob(dict):    # (short for 'Bicicleta object')
+    parent = None
+    primval = None
+    def __init__(self, parent, methods):
+        self.parent = parent
+        self.methods = methods
+    def __repr__(self):
+        return trampoline(self.show(repr, None))
+    def show(self, prim, k):
+        slot = 'repr' if prim is repr else 'str'
+        return call(self, slot, (show_slot_k, k))
     def list_slots(self):
         ancestor, slots = self, set()
         while ancestor is not None and ancestor.primval is None:
@@ -49,11 +67,14 @@ class Bob(dict):    # (short for 'Bicicleta object')
             ancestor = ancestor.parent
         return slots
 
+def show_slot_k(result, _, k):
+    return k, (result.primval if isinstance(result, String) else '<bob>')
+
 miranda_methods = {
-    'is_number': lambda ancestor, self: false_claim,
-    'is_string': lambda ancestor, self: false_claim,
-    'repr':      lambda ancestor, self: miranda_show(ancestor.primval, repr, self),
-    'str':       lambda ancestor, self: miranda_show(ancestor.primval, str, self),
+    'is_number': lambda ancestor, self, k: (k, false_claim),
+    'is_string': lambda ancestor, self, k: (k, false_claim),
+    'repr':      lambda ancestor, self, k: (k, miranda_show(ancestor.primval, repr, self)),
+    'str':       lambda ancestor, self, k: (k, miranda_show(ancestor.primval, str, self)),
 }
 
 number_type = (int, float)
@@ -75,19 +96,21 @@ class PrimOp(Bob):
         self.ancestor = ancestor
         self.arg0 = arg0
 
-class BarePrimOp(Bob):
-    def __init__(self, ancestor, arg0):
-        self.pv = ancestor.primval
-
 
 # Primitive objects
 
-def prim_add(self, doing):
-    arg1 = doing['arg1']
+def prim_add(self, doing, k):
+    return call(doing, 'arg1', (add_k, self, k))
+
+def add_k(arg1, _, self, k):
     if isinstance(arg1.primval, number_type):
-        return Number(self.ancestor.primval + arg1.primval)
+        return k, Number(self.ancestor.primval + arg1.primval)
     else:
-        return Bob(arg1['add_to'], {'arg1': lambda _, __: self.arg0})['()']
+        return call(arg1, 'add_to', (add_to_k, self.arg0, k))
+
+def add_to_k(arg1_add_to, _, arg0, k):
+    return call(Bob(arg1_add_to, {'arg1': lambda _, __, mk: (mk, arg0)}),
+                '()', k)
 
 class PrimAdd(PrimOp):
     name, methods = '+', {
@@ -98,48 +121,48 @@ class PrimAdd(PrimOp):
 # they are unconverted, since mainly I wanted to make sure it'd work, and
 # I don't know what Kragen wants in detail.
 
-class PrimSub(BarePrimOp):
-    name, methods = '-', {
-        '()': lambda self, doing: Number(self.pv - doing['arg1'].primval)
+class BarePrimOp(Bob):
+    methods = {
+        '()': lambda self, doing, k: call(doing, 'arg1', (self.arg1_k, self, k))
     }
-class PrimMul(BarePrimOp):
-    name, methods = '*', {
-        '()': lambda self, doing: Number(self.pv * doing['arg1'].primval)
-    }
-class PrimDiv(BarePrimOp):
-    name, methods = '/', {
-        '()': lambda self, doing: Number(self.pv / doing['arg1'].primval)
-    }
-class PrimPow(BarePrimOp):
-    name, methods = '**', {
-        '()': lambda self, doing: Number(self.pv ** doing['arg1'].primval)
-    }
+    def __init__(self, ancestor, arg0):
+        self.pv = ancestor.primval
 
-class PrimEq(BarePrimOp):     # XXX cmp ops need to deal with overriding
-    name, methods = '==', {
-        '()': lambda self, doing: Claim(self.pv == doing['arg1'].primval)
-    }
-class PrimLt(BarePrimOp):
-    name, methods = '<', {
-        '()': lambda self, doing: Claim(self.pv < doing['arg1'].primval)
-    }
+def sub_k(arg1, _, self, k): return k, Number(self.pv - arg1.primval)
+def mul_k(arg1, _, self, k): return k, Number(self.pv * arg1.primval)
+def div_k(arg1, _, self, k): return k, Number(self.pv / arg1.primval)
+def pow_k(arg1, _, self, k): return k, Number(self.pv ** arg1.primval)
+# XXX cmp ops need to deal with overriding:
+def eq_k(arg1, _, self, k):  return k, Claim(self.pv == arg1.primval)
+def lt_k(arg1, _, self, k):  return k, Claim(self.pv < arg1.primval)
+
+class PrimSub(BarePrimOp): name, arg1_k = '-',  staticmethod(sub_k)
+class PrimMul(BarePrimOp): name, arg1_k = '-',  staticmethod(mul_k)
+class PrimDiv(BarePrimOp): name, arg1_k = '/',  staticmethod(div_k)
+class PrimPow(BarePrimOp): name, arg1_k = '**', staticmethod(pow_k)
+class PrimEq(BarePrimOp):  name, arg1_k = '==', staticmethod(eq_k)
+class PrimLt(BarePrimOp):  name, arg1_k = '<',  staticmethod(lt_k)
+
+def primop_method(class_):
+    return lambda ancestor, receiver, k: (k, class_(ancestor, receiver))
 
 class Number(Prim):
     def __init__(self, n):
         self.primval = n
     methods = {
-        'is_number': lambda _, me: true_claim,
-        '+':  PrimAdd,
-        '-':  PrimSub,
-        '*':  PrimMul,
-        '/':  PrimDiv,
-        '**': PrimPow,
-        '==': PrimEq,
-        '<':  PrimLt,
+        'is_number': lambda _, me, k: (k, true_claim),
+        '+':  primop_method(PrimAdd),
+        '-':  primop_method(PrimSub),
+        '*':  primop_method(PrimMul),
+        '/':  primop_method(PrimDiv),
+        '**': primop_method(PrimPow),
+        '==': primop_method(PrimEq),
+        '<':  primop_method(PrimLt),
     }
 
+# XXX not trampolined yet
 class PrimStringSubst(BarePrimOp):
-    name, methods = '%', {
+    name, arg1_k = '%', {
         '()': lambda self, doing: String(string_substitute(self.pv,
                                                            doing['arg1']))
     }
@@ -152,10 +175,10 @@ class String(Prim):
     def __init__(self, s):
         self.primval = s
     methods = {
-        'is_string': lambda _, me: true_claim,
-        '==': PrimEq,
-        '<':  PrimLt,
-        '%':  PrimStringSubst,
+        'is_string': lambda _, me, k: (k, true_claim),
+        '==': primop_method(PrimEq),
+        '<':  primop_method(PrimLt),
+#        '%':  PrimStringSubst,
     }
 
 def Claim(value):
@@ -163,17 +186,17 @@ def Claim(value):
     return true_claim if value else false_claim
 
 true_claim  = Prim(None, {
-    'if':   lambda _, me: pick_so,
-    'repr': lambda _, me: String('true'), # XXX this is kind of awful
-    'str':  lambda _, me: String('true'),
+    'if':   lambda _, me, k: (k, pick_so),
+    'repr': lambda _, me, k: (k, String('true')), # XXX the repr/str duplication is kind of awful
+    'str':  lambda _, me, k: (k, String('true')),
 })
 false_claim = Prim(None, {
-    'if':   lambda _, me: pick_else,
-    'repr': lambda _, me: String('false'),
-    'str':  lambda _, me: String('false'),
+    'if':   lambda _, me, k: (k, pick_else),
+    'repr': lambda _, me, k: (k, String('false')),
+    'str':  lambda _, me, k: (k, String('false')),
 })
-pick_so     = Prim(None, {'()': lambda _, doing: doing['so']})
-pick_else   = Prim(None, {'()': lambda _, doing: doing['else']})
+pick_so     = Prim(None, {'()': lambda _, doing, k: call(doing, 'so', k)})
+pick_else   = Prim(None, {'()': lambda _, doing, k: call(doing, 'else', k)})
 
 root_bob = Prim(None, {})
 
@@ -185,16 +208,16 @@ class VarRef(object):
         self.name = name
     def __repr__(self):
         return self.name
-    def eval(self, env):
-        return env[self.name]
+    def eval(self, env, k):
+        return k, env[self.name]
 
 class Literal(object):
     def __init__(self, value):
         self.value = value
     def __repr__(self):
-        return self.value.show()
-    def eval(self, env):
-        return self.value
+        return repr(self.value)
+    def eval(self, env, k):
+        return k, self.value
 
 class Call(object):
     def __init__(self, receiver, slot):
@@ -202,8 +225,11 @@ class Call(object):
         self.slot = slot
     def __repr__(self):
         return '%s.%s' % (self.receiver, self.slot)
-    def eval(self, env):
-        return self.receiver.eval(env)[self.slot]
+    def eval(self, env, k):
+        return self.receiver.eval(env, (call_k, self.slot, k))
+
+def call_k(bob, _, slot, k):
+    return call(bob, slot, k)
 
 def make_extend(base, name, bindings):
     extend = SelflessExtend if name is None else Extend
@@ -220,25 +246,31 @@ class Extend(object):
                              self.name + ': ' if self.name else '',
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
-    def eval(self, env):
-        return Bob(self.base.eval(env),
-                   {slot: make_slot_thunk(self.name, expr, env)
-                    for slot, expr in self.bindings})
+    def eval(self, env, k):
+        return self.base.eval(env, (extend_k, self, env, k))
+
+def extend_k(bob, _, self, env, k):
+    return k, Bob(bob,
+                  {slot: make_slot_thunk(self.name, expr, env)
+                   for slot, expr in self.bindings})
 
 class SelflessExtend(Extend):
-    def eval(self, env):
-        return Bob(self.base.eval(env),
-                   {slot: make_selfless_slot_thunk(expr, env)
-                    for slot, expr in self.bindings})
+    def eval(self, env, k):
+        return self.base.eval(env, (selfless_extend_k, self, env, k))
+
+def selfless_extend_k(bob, _, self, env, k):
+    return k, Bob(bob,
+                  {slot: make_selfless_slot_thunk(expr, env)
+                   for slot, expr in self.bindings})
 
 def make_selfless_slot_thunk(expr, env):
-    return lambda _, __: expr.eval(env)
+    return lambda _, __, k: expr.eval(env, k)
 
 def make_slot_thunk(name, expr, env):
-    def thunk(_, receiver):
+    def thunk(_, receiver, k):
         new_env = dict(env)
         new_env[name] = receiver
-        return expr.eval(new_env)
+        return expr.eval(new_env, k)
     return thunk
 
 empty_env = {}
@@ -327,6 +359,12 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 ## parse("x ++ y{a=b} <*> z.foo")
 #. x.++{arg1=y{a=b}}.().<*>{arg1=z.foo}.()
 
+## parse('5')
+#. 5
+
+## run('5')
+#. '5'
+
 ## wtf = parse("{x=42, y=55}.x")
 ## wtf
 #. {x=42, y=55}.x
@@ -346,6 +384,11 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 #. 137.+{arg1=1}.()
 ## run(adding)
 #. '138'
+
+## run('3+2')
+#. '5'
+## run('3*2')
+#. '6'
 
 ## run("137.5 - 2 - 1")
 #. '134.5'
@@ -380,8 +423,8 @@ test_extend = parse("""
 ## run(test_extend)
 #. '14'
 
-## run('"hey {x} and {why}" % {x=84/2, why=136+1}')
-#. "'hey 42.0 and 137'"
+# XXX
+# run('"hey {x} and {why}" % {x=84/2, why=136+1}')
 ## run("5**3")
 #. '125'
 
