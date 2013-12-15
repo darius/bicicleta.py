@@ -28,7 +28,8 @@
   }
 
   vector = {vec: elements = sys.cons{first=17, rest=sys.empty}
-    repr = "[" ++ vec.elements ++ "]"
+    str = vec.repr
+    repr = "[" ++ vec.elements.repr ++ "]"
     add_to = {adding: n = adding.arg1
       '()' = adding.n.is_number.if(
                so = sys.vector {elements = vec.elements.map({each:
