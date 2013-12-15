@@ -16,7 +16,7 @@ TODO: add some interpreted miranda methods too.
 import core
 
 def sys_load(name):
-    bob = sys_bob[name]
+    bob = core.trampoline(core.call(sys_bob, name, None))
     extend_in_place(bob, load('sys_%s.bicicleta' % name))
 
 def extend_in_place(bob, overlay):
@@ -26,16 +26,12 @@ def extend_in_place(bob, overlay):
         bob.methods[slot] = method
 
 def load(filename):
-    return core.parse(open(filename).read()).eval(global_env)
-
-def bind(env, bindings):
-    new_env = dict(env)
-    new_env.update(bindings)
-    return new_env
+    expr = core.parse(open(filename).read())
+    return core.trampoline(expr.eval(global_env, None))
 
 sys_bob = core.Prim(None, {
-    'true':  lambda _, me: core.true_claim,
-    'false': lambda _, me: core.false_claim,
+    'true':  lambda _, me, k: (k, core.true_claim),
+    'false': lambda _, me, k: (k, core.false_claim),
 })
 global_env = {'sys': sys_bob}
 
@@ -45,17 +41,13 @@ extend_in_place(core.Number(42), load('sys_number.bicicleta'))
 extend_in_place(core.String('hi'), load('sys_string.bicicleta'))
 extend_in_place(sys_bob, load('sys.bicicleta'))
 
-def run(program, prim=repr):
-    return core.parse(program).eval(global_env).show(prim)
+def run(text, prim=repr):
+    program = core.parse(text)
+    return core.trampoline(program.eval(global_env, (core.show_k, None)))
 
-## sys_bob['true']['str'].show()
-#. "'true'"
-## sys_bob['true']['&'].show()
-#. '{()}'
-## core.Number(5)['succ'].show()
-#. '6'
-## core.Bob(core.String('yo')['++'], {'arg1': lambda a, b: core.String('zz')})['()'].show()
-#. "'yozz'"
+## run('5')
+## run('5+6')
+
 ## run('"hey" ++ "dude"', prim=str)
 #. 'heydude'
 
