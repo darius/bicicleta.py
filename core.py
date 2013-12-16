@@ -60,28 +60,18 @@ def call(self, slot, k):
                         break
                     ancestor = ancestor.parent
                     if not isinstance(ancestor, Bob):
-                        # XXX duplicate code
-                        if   isinstance(ancestor, number_type): methods = number_methods
-                        elif isinstance(ancestor, string_type): methods = string_methods
-                        else: assert False, ancestor
-                        try:
-                            method = methods[slot]
-                        except KeyError:
-                            method = miranda_methods[slot]
+                        methods = primitive_method_tables[type(ancestor)]
+                        try:             method = methods[slot]
+                        except KeyError: method = miranda_methods[slot]
                         break
             return method(ancestor, self, (cache_slot_k, self, slot, k))
         else:
             return k, value
     else:
-        # TODO: try like primitive_types[type(self)][slot]
         # TODO: bool type too
-        if   isinstance(self, number_type): methods = number_methods
-        elif isinstance(self, string_type): methods = string_methods
-        else: assert False
-        try:
-            method = methods[slot]
-        except KeyError:
-            method = miranda_methods[slot]
+        methods = primitive_method_tables[type(self)]
+        try:             method = methods[slot]
+        except KeyError: method = miranda_methods[slot]
         return method(self, self, k)
 
 def cache_slot_k(value, _, self, slot, k):
@@ -238,6 +228,12 @@ false_claim = Bob(None, {
 })
 pick_so     = Bob(None, {'()': lambda _, doing, k: call(doing, 'so', k)})
 pick_else   = Bob(None, {'()': lambda _, doing, k: call(doing, 'else', k)})
+
+primitive_method_tables = {
+    int: number_methods,
+    float: number_methods,
+    str: string_methods,
+}
 
 root_bob = Bob(None, {})
 
