@@ -17,20 +17,19 @@ import core
 
 def sys_load(name):
     bob = core.trampoline(core.call(sys_bob, name, None))
-    extend_in_place(bob, load('sys_%s.bicicleta' % name))
+    extend_in_place(bob.methods, load('sys_%s.bicicleta' % name))
 
-def extend_in_place(bob, overlay):
+def extend_in_place(methods, overlay):
     # TODO: deep copy? Shallow is all we need for now.
-    for slot, method in overlay.methods.items():
-        assert slot not in bob
-        assert slot not in bob.methods, (slot, bob)
-        bob.methods[slot] = method
+    for slot in overlay.methods:
+        assert slot not in methods, slot
+    methods.update(overlay.methods)
 
 def load(filename):
     expr = core.parse(open(filename).read())
     return core.trampoline(expr.eval(global_env, None))
 
-sys_bob = core.Prim(None, {
+sys_bob = core.Bob(None, {
     'true':  lambda _, me, k: (k, core.true_claim),
     'false': lambda _, me, k: (k, core.false_claim),
 })
@@ -38,9 +37,9 @@ global_env = {'sys': sys_bob}
 
 sys_load('true')
 sys_load('false')
-extend_in_place(core.Number(42), load('sys_number.bicicleta'))
-extend_in_place(core.String('hi'), load('sys_string.bicicleta'))
-extend_in_place(sys_bob, load('sys.bicicleta'))
+extend_in_place(core.number_methods, load('sys_number.bicicleta'))
+extend_in_place(core.string_methods, load('sys_string.bicicleta'))
+extend_in_place(sys_bob.methods, load('sys.bicicleta'))
 
 def run(program):
     if isinstance(program, core.string_type):

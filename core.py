@@ -39,53 +39,76 @@ def run(program, loud=False):
     return trampoline(program.eval(empty_env, (show_k, None)),
                       loud)
 
-def show_k(result, _, k): return result.show(repr, k)
+def show_k(result, _, k): return show(result, repr, k)
 
 
 # Objects
 
 def call(self, slot, k):
-    try:
-        value = self[slot]
-    except KeyError:
-        ancestor = self
-        while True:
-            try:
-                method = ancestor.methods[slot]
-                break
-            except KeyError:
-                if ancestor.parent is None:
-                    method = miranda_methods[slot]
+    if isinstance(self, Bob):
+        try:
+            value = self[slot]
+        except KeyError:
+            ancestor = self
+            while True:
+                try:
+                    method = ancestor.methods[slot]
                     break
-                ancestor = ancestor.parent
-        return method(ancestor, self, (cache_slot_k, self, slot, k))
+                except KeyError:
+                    if ancestor.parent is None:
+                        method = miranda_methods[slot]
+                        break
+                    ancestor = ancestor.parent
+                    if not isinstance(ancestor, Bob):
+                        # XXX duplicate code
+                        if   isinstance(ancestor, number_type): methods = number_methods
+                        elif isinstance(ancestor, string_type): methods = string_methods
+                        else: assert False, ancestor
+                        try:
+                            method = methods[slot]
+                        except KeyError:
+                            method = miranda_methods[slot]
+                        break
+            return method(ancestor, self, (cache_slot_k, self, slot, k))
+        else:
+            return k, value
     else:
-        return k, value
+        # TODO: try like primitive_types[type(self)][slot]
+        # TODO: bool type too
+        if   isinstance(self, number_type): methods = number_methods
+        elif isinstance(self, string_type): methods = string_methods
+        else: assert False
+        try:
+            method = methods[slot]
+        except KeyError:
+            method = miranda_methods[slot]
+        return method(self, self, k)
 
 def cache_slot_k(value, _, self, slot, k):
     self[slot] = value
     return k, value
 
-class Bob(dict):    # (short for 'Bicicleta object')
+def show(bob, prim, k):
+    slot = 'repr' if prim is repr else 'str'
+    return call(bob, slot, (show_slot_k, k))
+
+class Bob(dict): # (Short for 'Bicicleta object'. But a lowercase bob might be a primitive instead.)
     parent = None
-    primval = None
     def __init__(self, parent, methods):
         self.parent = parent
         self.methods = methods
     def __repr__(self):
-        return trampoline(self.show(repr, None))
-    def show(self, prim, k):
-        slot = 'repr' if prim is repr else 'str'
-        return call(self, slot, (show_slot_k, k))
-    def list_slots(self):
-        ancestor, slots = self, set()
-        while ancestor is not None and ancestor.primval is None:
-            slots.update(ancestor.methods)
-            ancestor = ancestor.parent
-        return slots
+        return trampoline(show(self, repr, None))
+
+def list_slots(bob):
+    ancestor, slots = bob, set()
+    while isinstance(ancestor, Bob):
+        slots.update(ancestor.methods)
+        ancestor = ancestor.parent
+    return slots
 
 def show_slot_k(result, _, k):
-    return k, (result.primval if isinstance(result, String) else '<bob>')
+    return k, (result if isinstance(result, string_type) else '<bob>')
 
 class PrimCall(Bob):
     name = 'reflective slot value'
@@ -95,8 +118,8 @@ class PrimCall(Bob):
         '()': lambda self, doing, k: call(doing, 'arg1', (prim_call_k, self, k))
     }
 def prim_call_k(arg1, _, self, k):
-    assert isinstance(arg1.primval, string_type), "non-string slot: %r" % (arg1,)
-    return call(self.receiver, arg1.primval, k)
+    assert isinstance(arg1, string_type), "Non-string slot: %r" % (arg1,)
+    return call(self.receiver, arg1, k)
 
 ## run(""" 5{is_string=42}.'reflective slot value'("is_string") """)
 #. '42'
@@ -104,8 +127,8 @@ def prim_call_k(arg1, _, self, k):
 miranda_methods = {
     'is_number': lambda ancestor, self, k: (k, false_claim),
     'is_string': lambda ancestor, self, k: (k, false_claim),
-    'repr':      lambda ancestor, self, k: (k, miranda_show(ancestor.primval, repr, self)),
-    'str':       lambda ancestor, self, k: (k, miranda_show(ancestor.primval, str, self)),
+    'repr':      lambda ancestor, self, k: (k, miranda_show(ancestor, repr, self)),
+    'str':       lambda ancestor, self, k: (k, miranda_show(ancestor, str, self)),
     PrimCall.name: lambda _, self, k:      (k, PrimCall(self)),
 }
 
@@ -113,15 +136,10 @@ number_type = (int, float)
 string_type = str               # XXX or unicode, in python2
 
 def miranda_show(primval, prim_to_str, bob):
-    shown = '' if primval is None else prim_to_str(primval)
-    slots = bob.list_slots()
+    shown = '' if isinstance(primval, Bob) else prim_to_str(primval)
+    slots = list_slots(bob)
     if slots: shown += '{' + ', '.join(sorted(slots)) + '}' 
-    return String(shown)
-
-class Prim(Bob):
-    def __init__(self, primval, methods):
-        self.primval = primval
-        self.methods = methods
+    return shown
 
 class PrimOp(Bob):
     def __init__(self, ancestor, arg0):
@@ -135,8 +153,8 @@ def prim_add(self, doing, k):
     return call(doing, 'arg1', (add_k, self, k))
 
 def add_k(arg1, _, self, k):
-    if isinstance(arg1.primval, number_type):
-        return k, Number(self.ancestor.primval + arg1.primval)
+    if isinstance(arg1, number_type):
+        return k, self.ancestor + arg1
     else:
         return call(arg1, 'add_to', (add_to_k, self.arg0, k))
 
@@ -158,15 +176,15 @@ class BarePrimOp(Bob):
         '()': lambda self, doing, k: call(doing, 'arg1', (self.arg1_k, self, k))
     }
     def __init__(self, ancestor, arg0):
-        self.pv = ancestor.primval
+        self.pv = ancestor
 
-def sub_k(arg1, _, self, k): return k, Number(self.pv - arg1.primval)
-def mul_k(arg1, _, self, k): return k, Number(self.pv * arg1.primval)
-def div_k(arg1, _, self, k): return k, Number(self.pv / arg1.primval)
-def pow_k(arg1, _, self, k): return k, Number(self.pv ** arg1.primval)
+def sub_k(arg1, _, self, k): return k, self.pv - arg1
+def mul_k(arg1, _, self, k): return k, self.pv * arg1
+def div_k(arg1, _, self, k): return k, self.pv / arg1
+def pow_k(arg1, _, self, k): return k, self.pv ** arg1
 # XXX cmp ops need to deal with overriding:
-def eq_k(arg1, _, self, k):  return k, Claim(self.pv == arg1.primval)
-def lt_k(arg1, _, self, k):  return k, Claim(self.pv < arg1.primval)
+def eq_k(arg1, _, self, k):  return k, Claim(self.pv == arg1)
+def lt_k(arg1, _, self, k):  return k, Claim(self.pv < arg1)
 
 class PrimSub(BarePrimOp): name, arg1_k = '-',  staticmethod(sub_k)
 class PrimMul(BarePrimOp): name, arg1_k = '-',  staticmethod(mul_k)
@@ -178,56 +196,50 @@ class PrimLt(BarePrimOp):  name, arg1_k = '<',  staticmethod(lt_k)
 def primop_method(class_):
     return lambda ancestor, receiver, k: (k, class_(ancestor, receiver))
 
-class Number(Prim):
-    def __init__(self, n):
-        self.primval = n
-    methods = {
-        'is_number': lambda _, me, k: (k, true_claim),
-        '+':  primop_method(PrimAdd),
-        '-':  primop_method(PrimSub),
-        '*':  primop_method(PrimMul),
-        '/':  primop_method(PrimDiv),
-        '**': primop_method(PrimPow),
-        '==': primop_method(PrimEq),
-        '<':  primop_method(PrimLt),
-    }
+number_methods = {
+    'is_number': lambda _, me, k: (k, true_claim),
+    '+':         primop_method(PrimAdd),
+    '-':         primop_method(PrimSub),
+    '*':         primop_method(PrimMul),
+    '/':         primop_method(PrimDiv),
+    '**':        primop_method(PrimPow),
+    '==':        primop_method(PrimEq),
+    '<':         primop_method(PrimLt),
+}
 
 def string_cat_k(arg1, _, self, k):
-    assert isinstance(arg1.primval, string_type), arg1
-    return k, String(self.pv + arg1.primval)
+    assert isinstance(arg1, string_type), arg1
+    return k, self.pv + arg1
 class StringCat(BarePrimOp): name, arg1_k = '++', staticmethod(string_cat_k)
 
-class String(Prim):
-    def __init__(self, s):
-        self.primval = s
-    methods = {
-        'is_string': lambda _, me, k: (k, true_claim),
-        'is_empty':  lambda ancestor, me, k: (k, Claim(ancestor.primval == '')),
-        'first':     lambda ancestor, me, k: (k, String(ancestor.primval[0])),
-        'rest':      lambda ancestor, me, k: (k, String(ancestor.primval[1:])),
-        '==': primop_method(PrimEq),
-        '<':  primop_method(PrimLt),
-        '++': primop_method(StringCat),
-    }
+string_methods = {
+    'is_string': lambda _, me, k: (k, true_claim),
+    'is_empty':  lambda ancestor, me, k: (k, Claim(ancestor == '')),
+    'first':     lambda ancestor, me, k: (k, ancestor[0]),
+    'rest':      lambda ancestor, me, k: (k, ancestor[1:]),
+    '==':        primop_method(PrimEq),
+    '<':         primop_method(PrimLt),
+    '++':        primop_method(StringCat),
+}
 
 def Claim(value):
     assert isinstance(value, bool)
     return true_claim if value else false_claim
 
-true_claim  = Prim(None, {
+true_claim  = Bob(None, {
     'if':   lambda _, me, k: (k, pick_so),
-    'repr': lambda _, me, k: (k, String('true')), # XXX the repr/str duplication is kind of awful
-    'str':  lambda _, me, k: (k, String('true')),
+    'repr': lambda _, me, k: (k, 'true'), # XXX the repr/str duplication is kind of awful
+    'str':  lambda _, me, k: (k, 'true'),
 })
-false_claim = Prim(None, {
+false_claim = Bob(None, {
     'if':   lambda _, me, k: (k, pick_else),
-    'repr': lambda _, me, k: (k, String('false')),
-    'str':  lambda _, me, k: (k, String('false')),
+    'repr': lambda _, me, k: (k, 'false'),
+    'str':  lambda _, me, k: (k, 'false'),
 })
-pick_so     = Prim(None, {'()': lambda _, doing, k: call(doing, 'so', k)})
-pick_else   = Prim(None, {'()': lambda _, doing, k: call(doing, 'else', k)})
+pick_so     = Bob(None, {'()': lambda _, doing, k: call(doing, 'so', k)})
+pick_else   = Bob(None, {'()': lambda _, doing, k: call(doing, 'else', k)})
 
-root_bob = Prim(None, {})
+root_bob = Bob(None, {})
 
 
 # Evaluation
@@ -313,9 +325,9 @@ expr        = factor infixes                attach_all
 factor      = primary affixes               attach_all
 
 primary     = name                          VarRef
-            | _ (\d*\.\d+)                  float Number Literal
-            | _ (\d+)                       int   Number Literal
-            | _ "([^"\\]*)"                       String Literal
+            | _ (\d*\.\d+)                  float Literal
+            | _ (\d+)                       int   Literal
+            | _ "([^"\\]*)"                       Literal
             | _ \( _ expr \)
             | empty derive                  attach
 
