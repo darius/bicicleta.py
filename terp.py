@@ -28,11 +28,6 @@ def extend_in_place(bob, overlay):
 def load(filename):
     return core.parse(open(filename).read()).eval(global_env)
 
-def bind(env, bindings):
-    new_env = dict(env)
-    new_env.update(bindings)
-    return new_env
-
 sys_bob = core.Prim(None, {
     'true':  lambda _, me: core.true_claim,
     'false': lambda _, me: core.false_claim,
