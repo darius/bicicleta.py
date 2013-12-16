@@ -68,7 +68,6 @@ def call(self, slot, k):
         else:
             return k, value
     else:
-        # TODO: bool type too
         methods = primitive_method_tables[type(self)]
         try:             method = methods[slot]
         except KeyError: method = miranda_methods[slot]
@@ -115,8 +114,8 @@ def prim_call_k(arg1, _, self, k):
 #. '42'
 
 miranda_methods = {
-    'is_number': lambda ancestor, self, k: (k, false_claim),
-    'is_string': lambda ancestor, self, k: (k, false_claim),
+    'is_number': lambda ancestor, self, k: (k, True),
+    'is_string': lambda ancestor, self, k: (k, False),
     'repr':      lambda ancestor, self, k: (k, miranda_show(ancestor, repr, self)),
     'str':       lambda ancestor, self, k: (k, miranda_show(ancestor, str, self)),
     PrimCall.name: lambda _, self, k:      (k, PrimCall(self)),
@@ -173,8 +172,8 @@ def mul_k(arg1, _, self, k): return k, self.pv * arg1
 def div_k(arg1, _, self, k): return k, self.pv / arg1
 def pow_k(arg1, _, self, k): return k, self.pv ** arg1
 # XXX cmp ops need to deal with overriding:
-def eq_k(arg1, _, self, k):  return k, Claim(self.pv == arg1)
-def lt_k(arg1, _, self, k):  return k, Claim(self.pv < arg1)
+def eq_k(arg1, _, self, k):  return k, self.pv == arg1
+def lt_k(arg1, _, self, k):  return k, self.pv < arg1
 
 class PrimSub(BarePrimOp): name, arg1_k = '-',  staticmethod(sub_k)
 class PrimMul(BarePrimOp): name, arg1_k = '-',  staticmethod(mul_k)
@@ -187,7 +186,7 @@ def primop_method(class_):
     return lambda ancestor, receiver, k: (k, class_(ancestor, receiver))
 
 number_methods = {
-    'is_number': lambda _, me, k: (k, true_claim),
+    'is_number': lambda _, me, k: (k, True),
     '+':         primop_method(PrimAdd),
     '-':         primop_method(PrimSub),
     '*':         primop_method(PrimMul),
@@ -203,8 +202,8 @@ def string_cat_k(arg1, _, self, k):
 class StringCat(BarePrimOp): name, arg1_k = '++', staticmethod(string_cat_k)
 
 string_methods = {
-    'is_string': lambda _, me, k: (k, true_claim),
-    'is_empty':  lambda ancestor, me, k: (k, Claim(ancestor == '')),
+    'is_string': lambda _, me, k: (k, True),
+    'is_empty':  lambda ancestor, me, k: (k, ancestor == ''),
     'first':     lambda ancestor, me, k: (k, ancestor[0]),
     'rest':      lambda ancestor, me, k: (k, ancestor[1:]),
     '==':        primop_method(PrimEq),
@@ -212,27 +211,17 @@ string_methods = {
     '++':        primop_method(StringCat),
 }
 
-def Claim(value):
-    assert isinstance(value, bool)
-    return true_claim if value else false_claim
-
-true_claim  = Bob(None, {
-    'if':   lambda _, me, k: (k, pick_so),
-    'repr': lambda _, me, k: (k, 'true'), # XXX the repr/str duplication is kind of awful
-    'str':  lambda _, me, k: (k, 'true'),
-})
-false_claim = Bob(None, {
-    'if':   lambda _, me, k: (k, pick_else),
-    'repr': lambda _, me, k: (k, 'false'),
-    'str':  lambda _, me, k: (k, 'false'),
-})
+bool_methods = {
+    'if':   lambda _, me, k: (k, (pick_so if me else pick_else)),
+}
 pick_so     = Bob(None, {'()': lambda _, doing, k: call(doing, 'so', k)})
 pick_else   = Bob(None, {'()': lambda _, doing, k: call(doing, 'else', k)})
 
 primitive_method_tables = {
-    int: number_methods,
+    bool:  bool_methods,
+    int:   number_methods,
     float: number_methods,
-    str: string_methods,
+    str:   string_methods,
 }
 
 root_bob = Bob(None, {})
@@ -470,9 +459,9 @@ test_extend = parse("""
 #. '30'
 
 ## run("5.is_string")
-#. 'false'
+#. 'False'
 ## run("5.is_number")
-#. 'true'
+#. 'True'
 
 def make_fac(n):
     fac = parse("""

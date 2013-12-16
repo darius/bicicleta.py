@@ -1,0 +1,8 @@
+{claim:
+# sys.true.if  = {doing: '()' = doing.so}
+# sys.false.if = {doing: '()' = doing.else}
+
+  not = claim.if(so=sys.false, else=sys.true)
+  '&' = {doing: '()' = claim.if(so=doing.arg1, else=sys.false)}
+  '|' = {doing: '()' = claim.if(so=sys.true,   else=doing.arg1)}
+}
