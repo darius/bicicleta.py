@@ -229,6 +229,8 @@ class VarRef(object):
         self.name = name
     def __repr__(self):
         return self.name
+    def compile(self, ck):
+        return ck(self.name)
     def eval(self, env, k):
         return k, env[self.name]
 
@@ -237,6 +239,8 @@ class Literal(object):
         self.value = value
     def __repr__(self):
         return repr(self.value)
+    def compile(self, ck):
+        return ck('root_bob' if self.value is root_bob else repr(self.value))
     def eval(self, env, k):
         return k, self.value
 
@@ -246,8 +250,18 @@ class Call(object):
         self.slot = slot
     def __repr__(self):
         return '%s.%s' % (self.receiver, self.slot)
+    def compile(self, ck):
+        kv = new_var()
+        return self.receiver.compile(lambda rv: 
+                                     ('call(%s, %r, lambda %s: %s)'
+                                      % (rv, self.slot, kv, ck(kv))))
     def eval(self, env, k):
         return self.receiver.eval(env, (call_k, self.slot, k))
+
+from itertools import count
+varnum = count()
+def new_var():
+    return 'v%d' % next(varnum)
 
 def call_k(bob, _, slot, k):
     return call(bob, slot, k)
@@ -267,6 +281,15 @@ class Extend(object):
                              self.name + ': ' if self.name else '',
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
+    def compile(self, ck):
+        bv, subk = new_var(), new_var()
+        name = new_var() if self.name is None else self.name
+        methods = [('%r: (lambda _, %s, %s: %s)'
+                    % (slot, name, subk, expr.compile(lambda e: '%s(%s)' % (subk, e))))
+                   for slot, expr in self.bindings]
+        return self.base.compile(lambda rv:
+                                 (('%s = Bob(%s, {%s}); ' % (bv, rv, ', '.join(methods)))
+                                  + ck(bv)))
     def eval(self, env, k):
         return self.base.eval(env, (extend_k, self, env, k))
 
@@ -382,6 +405,12 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 
 ## parse('5')
 #. 5
+
+# XXX Obviously compiling is not here yet:
+## parse('5').compile(lambda x: 'k(%s)' % x)
+#. 'k(5)'
+## parse('5+6').compile(lambda x: 'k(%s)' % x)
+#. "call(5, '+', lambda v4: v1 = Bob(v4, {'arg1': (lambda _, v3, v2: v2(6))}); call(v1, '()', lambda v0: k(v0)))"
 
 ## run('5')
 #. '5'
