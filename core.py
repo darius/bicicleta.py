@@ -87,11 +87,26 @@ class Bob(dict):    # (short for 'Bicicleta object')
 def show_slot_k(result, _, k):
     return k, (result.primval if isinstance(result, String) else '<bob>')
 
+class PrimCall(Bob):
+    name = 'reflective slot value'
+    def __init__(self, receiver):
+        self.receiver = receiver
+    methods = {
+        '()': lambda self, doing, k: call(doing, 'arg1', (prim_call_k, self, k))
+    }
+def prim_call_k(arg1, _, self, k):
+    assert isinstance(arg1.primval, string_type), "non-string slot: %r" % (arg1,)
+    return call(self.receiver, arg1.primval, k)
+
+## run(""" 5{is_string=42}.'reflective slot value'("is_string") """)
+#. '42'
+
 miranda_methods = {
     'is_number': lambda ancestor, self, k: (k, false_claim),
     'is_string': lambda ancestor, self, k: (k, false_claim),
     'repr':      lambda ancestor, self, k: (k, miranda_show(ancestor.primval, repr, self)),
     'str':       lambda ancestor, self, k: (k, miranda_show(ancestor.primval, str, self)),
+    PrimCall.name: lambda _, self, k:      (k, PrimCall(self)),
 }
 
 number_type = (int, float)

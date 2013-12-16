@@ -46,6 +46,12 @@ def run(text):
     program = core.parse(text)
     return core.trampoline(program.eval(global_env, (core.show_k, None)))
 
+def debug():
+    text = """ "{}" % {''=5} """
+    program = core.parse(text)
+    core.trampoline(program.eval(global_env, None),
+                    loud=True)
+
 ## run('5')
 #. '5'
 ## run('5+6')
@@ -53,6 +59,16 @@ def run(text):
 
 ## run('"hey" ++ "dude"')
 #. "'heydude'"
+
+## run('"" % {x=84/2, why=136+1}')
+#. "''"
+## run('"abc" % {x=84/2, why=136+1}')
+#. "'abc'"
+## run(""" "{}" % {''=5} """)
+#. "'5'"
+
+## run('"hey {x} and {why}" % {x=84/2, why=136+1}')
+#. "'hey 42.0 and 137'"
 
 ## run('sys.cons {first=5, rest=sys.empty}')
 #. '(5:())'
