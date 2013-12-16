@@ -42,8 +42,9 @@ extend_in_place(core.Number(42), load('sys_number.bicicleta'))
 extend_in_place(core.String('hi'), load('sys_string.bicicleta'))
 extend_in_place(sys_bob, load('sys.bicicleta'))
 
-def run(text):
-    program = core.parse(text)
+def run(program):
+    if isinstance(program, core.string_type):
+        program = core.parse(program)
     return core.trampoline(program.eval(global_env, (core.show_k, None)))
 
 def debug():
