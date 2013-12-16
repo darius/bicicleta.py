@@ -46,31 +46,26 @@ def show_k(result, _, k): return show(result, repr, k)
 
 def call(self, slot, k):
     if isinstance(self, Bob):
-        try:
-            value = self[slot]
-        except KeyError:
-            ancestor = self
-            while True:
-                try:
-                    method = ancestor.methods[slot]
-                    break
-                except KeyError:
-                    if ancestor.parent is None:
-                        method = miranda_methods[slot]
-                        break
-                    ancestor = ancestor.parent
-                    if not isinstance(ancestor, Bob):
-                        methods = primitive_method_tables[type(ancestor)]
-                        try:             method = methods[slot]
-                        except KeyError: method = miranda_methods[slot]
-                        break
-            return method(ancestor, self, (cache_slot_k, self, slot, k))
-        else:
+        value = self.get(slot)
+        if value is not None:
             return k, value
+        ancestor = self
+        while True:
+            method = ancestor.methods.get(slot)
+            if method is not None:
+                break
+            if ancestor.parent is None:
+                method = miranda_methods[slot]
+                break
+            ancestor = ancestor.parent
+            if not isinstance(ancestor, Bob):
+                method = primitive_method_tables[type(ancestor)].get(slot)
+                if method is None: method = miranda_methods[slot]
+                break
+        return method(ancestor, self, (cache_slot_k, self, slot, k))
     else:
-        methods = primitive_method_tables[type(self)]
-        try:             method = methods[slot]
-        except KeyError: method = miranda_methods[slot]
+        method = primitive_method_tables[type(self)].get(slot)
+        if method is None: method = miranda_methods[slot]
         return method(self, self, k)
 
 def cache_slot_k(value, _, self, slot, k):
