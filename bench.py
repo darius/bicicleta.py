@@ -2,7 +2,7 @@
 Quick and dirty benchmarks of the core interpreter.
 """
 
-#import terp
+import terp
 from core import *
 
 def make_tak():
