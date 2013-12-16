@@ -151,9 +151,9 @@ class PrimAdd(PrimOp):
         '()': prim_add
     }
 
-# The other arith ops should also do double dispatching, but for now here
-# they are unconverted, since mainly I wanted to make sure it'd work, and
-# I don't know what Kragen wants in detail.
+# The other arith ops should also double-dispatch, but for now here
+# they are unconverted, since mainly I wanted to make sure it'd work,
+# and I don't know what Kragen wants in detail.
 
 class BarePrimOp(Bob):
     methods = {
