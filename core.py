@@ -13,21 +13,21 @@ from peglet import OneResult, Parser, hug
 # Top level
 
 def trampoline(state, loud=False):
-    k, arg = state
+    k, value = state
     if loud:
         while k:
-            whats_bouncing(k, arg)
+            whats_bouncing(k, value)
             print('')
             fn, free_var, k = k
-            k, arg = fn(arg, free_var, k)
+            k, value = fn(value, free_var, k)
     else:
         while k:
             fn, free_var, k = k
-            k, arg = fn(arg, free_var, k)
-    return arg
+            k, value = fn(value, free_var, k)
+    return value
 
-def whats_bouncing(k, arg):
-    print(':', arg)
+def whats_bouncing(k, value):
+    print(':', value)
     while k:
         print(k[0].__name__, '\t', *k[1:-1])
         k = k[-1]
