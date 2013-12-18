@@ -209,7 +209,7 @@ string_methods = {
 }
 
 bool_methods = {
-    'if':   lambda _, me, k: (k, (pick_so if me else pick_else)),
+    'if': lambda _, me, k: (k, (pick_so if me else pick_else)),
 }
 pick_so     = Bob(None, {'()': lambda _, doing, k: call(doing, 'so', k)})
 pick_else   = Bob(None, {'()': lambda _, doing, k: call(doing, 'else', k)})
