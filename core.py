@@ -291,22 +291,19 @@ class Extend(object):
                                  (('%s = Bob(%s, {%s}); ' % (bv, rv, ', '.join(methods)))
                                   + ck(bv)))
     def eval(self, env, k):
-        return self.base.eval(env, (extend_k, self, env, k))
-
-def extend_k(bob, _, self, env, k):
-    return k, Bob(bob,
-                  {slot: make_slot_thunk(self.name, expr, env)
-                   for slot, expr in self.bindings})
+        methods = {slot: make_slot_thunk(self.name, expr, env)
+                   for slot, expr in self.bindings}
+        return self.base.eval(env, (extend_k, methods, k))
 
 class SelflessExtend(Extend):
     def eval(self, env, k):
-        return self.base.eval(env, (selfless_extend_k, self, env, k))
+        methods = {slot: make_selfless_slot_thunk(expr, env)
+                   for slot, expr in self.bindings}
+        return self.base.eval(env, (extend_k, methods, k))
 
-def selfless_extend_k(bob, _, self, env, k):
-    return k, Bob(bob,
-                  {slot: make_selfless_slot_thunk(expr, env)
-                   for slot, expr in self.bindings})
-
+def extend_k(bob, _, methods, k):
+    return k, Bob(bob, methods)
+                  
 def make_selfless_slot_thunk(expr, env):
     return lambda _, __, k: expr.eval(env, k)
 
