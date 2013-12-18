@@ -107,11 +107,8 @@ def prim_call_k(arg1, self, k):
     assert isinstance(arg1, string_type), "Non-string slot: %r" % (arg1,)
     return call(self.receiver, arg1, k)
 
-## run(""" 5{is_string=42}.'reflective slot value'("is_string") """)
-#. '42'
-
 miranda_methods = {
-    'is_number': lambda ancestor, self, k: (k, True),
+    'is_number': lambda ancestor, self, k: (k, False),
     'is_string': lambda ancestor, self, k: (k, False),
     'repr':      lambda ancestor, self, k: (k, miranda_show(ancestor, repr, self)),
     'str':       lambda ancestor, self, k: (k, miranda_show(ancestor, str, self)),
@@ -438,6 +435,17 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 
 ## run("137.5 - 2 - 1")
 #. '134.5'
+
+## run(""" 5{is_string=42}.'reflective slot value'("is_string") """)
+#. '42'
+## run(' 5.is_number ')
+#. 'True'
+## run(' "".is_number ')
+#. 'False'
+## run(' {}.is_number ')
+#. 'False'
+## run(' 5{}.is_number ')
+#. 'True'
 
 ## run("(136 < 137).if(so=1, else=2)")
 #. '1'
