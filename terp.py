@@ -39,7 +39,7 @@ extend_in_place(sys_bob.methods,     load('sys.bicicleta'))
 def run(program):
     if isinstance(program, core.string_type):
         program = core.parse(program)
-    return core.trampoline(program.eval(global_env, (core.show, repr, None)))
+    return core.trampoline(program.eval(global_env, (core.show, 'repr', None)))
 
 def debug_trace(text):
     program = core.parse(text)

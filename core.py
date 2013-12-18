@@ -38,7 +38,7 @@ def stepping(program):
 def run(program, loud=False):
     if isinstance(program, string_type):
         program = parse(program)
-    return trampoline(program.eval(empty_env, (show, repr, None)),
+    return trampoline(program.eval(empty_env, (show, 'repr', None)),
                       loud)
 
 
@@ -73,20 +73,21 @@ def cache_slot_k(value, free_var, k):
     self[slot] = value
     return k, value
 
-def show(bob, prim, k):
-    slot = 'repr' if prim is repr else 'str'
-    return call(bob, slot, (show_slot_k, None, k))
-
-def show_slot_k(result, _, k):
-    return k, (result if isinstance(result, string_type) else '<bob>')
-
 class Bob(dict): # (Short for 'Bicicleta object'. But a lowercase bob might be a primitive instead.)
     parent = None
     def __init__(self, parent, methods):
         self.parent = parent
         self.methods = methods
     def __repr__(self):
-        return trampoline(show(self, repr, None))
+        return trampoline(show(self, 'repr', None))
+    def __str__(self):
+        return trampoline(show(self, 'str', None))
+
+def show(bob, slot, k):
+    return call(bob, slot, (show_slot_k, None, k))
+
+def show_slot_k(result, _, k):
+    return k, (result if isinstance(result, string_type) else '<bob>')
 
 def list_slots(bob):
     ancestor, slots = bob, set()
