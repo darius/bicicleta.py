@@ -96,6 +96,9 @@ def list_slots(bob):
         ancestor = ancestor.parent
     return slots
 
+
+# Miranda methods
+
 class PrimCall(Bob):
     name = 'reflective slot value'
     def __init__(self, receiver):
@@ -115,22 +118,17 @@ miranda_methods = {
     PrimCall.name: lambda _, self, k:      (k, PrimCall(self)),
 }
 
-number_type = (int, float)
-string_type = str               # XXX or unicode, in python2
-
 def miranda_show(primval, prim_to_str, bob):
     shown = '' if isinstance(primval, Bob) else prim_to_str(primval)
     slots = list_slots(bob)
     if slots: shown += '{' + ', '.join(sorted(slots)) + '}' 
     return shown
 
-class PrimOp(Bob):
-    def __init__(self, ancestor, arg0):
-        self.ancestor = ancestor
-        self.arg0 = arg0
-
 
 # Primitive objects
+
+number_type = (int, float)
+string_type = str               # XXX or unicode, in python2
 
 def prim_add(self, doing, k):
     return call(doing, 'arg1', (add_k, self, k))
@@ -144,6 +142,11 @@ def add_k(arg1, self, k):
 def add_to_k(arg1_add_to, arg0, k):
     return call(Bob(arg1_add_to, {'arg1': lambda _, __, mk: (mk, arg0)}),
                 '()', k)
+
+class PrimOp(Bob):
+    def __init__(self, ancestor, arg0):
+        self.ancestor = ancestor
+        self.arg0 = arg0
 
 class PrimAdd(PrimOp):
     name, methods = '+', {
