@@ -328,16 +328,16 @@ primary     = name                          VarRef
             | _ (\d+)                       int   Literal
             | _ "([^"\\]*)"                       Literal
             | _ \( _ expr \)
-            | empty derive                  attach
+            | empty extend                  attach
 
 affixes     = affix affixes | 
 affix       = _ [.] name                    defer_dot
-            | derive
+            | extend
             | _ \( bindings _ \)            defer_funcall
             | _ \[ bindings _ \]            defer_squarecall
 
-derive      = _ { name _ : bindings _ }     defer_derive
-            | _ { nameless bindings _ }     defer_derive
+extend      = _ { name _ : bindings _ }     defer_extend
+            | _ { nameless bindings _ }     defer_extend
 bindings    = binds                         name_positions
 binds       = binding newline binds
             | binding _ , binds
@@ -378,7 +378,7 @@ def attach_all(expr, *affixes):    return reduce(attach, affixes, expr)
 def attach(expr, affix):           return affix[0](expr, *affix[1:])
 
 def defer_dot(name):               return Call, name
-def defer_derive(name, bindings):  return make_extend, name, bindings
+def defer_extend(name, bindings):  return make_extend, name, bindings
 def defer_funcall(bindings):       return mk_funcall, '()', bindings
 def defer_squarecall(bindings):    return mk_funcall, '[]', bindings
 def defer_infix(operator, expr):   return mk_infix, operator, expr
