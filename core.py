@@ -12,19 +12,18 @@ from peglet import OneResult, Parser, hug
 
 # Top level
 
-def stepping(program):
-    return run(program, loud=True)
-
 def trampoline(state, loud=False):
     k, arg = state
     if loud:
         while k:
             whats_bouncing(k, arg)
             print('')
-            k, arg = k[0](arg, *k)
+            fn, free_var, k = k
+            k, arg = fn(arg, free_var, k)
     else:
         while k:
-            k, arg = k[0](arg, *k)
+            fn, free_var, k = k
+            k, arg = fn(arg, free_var, k)
     return arg
 
 def whats_bouncing(k, arg):
@@ -33,13 +32,14 @@ def whats_bouncing(k, arg):
         print(k[0].__name__, '\t', *k[1:-1])
         k = k[-1]
 
+def stepping(program):
+    return run(program, loud=True)
+
 def run(program, loud=False):
     if isinstance(program, string_type):
         program = parse(program)
-    return trampoline(program.eval(empty_env, (show_k, None)),
+    return trampoline(program.eval(empty_env, (show, repr, None)),
                       loud)
-
-def show_k(result, _, k): return show(result, repr, k)
 
 
 # Objects
@@ -62,19 +62,23 @@ def call(self, slot, k):
                 method = primitive_method_tables[type(ancestor)].get(slot)
                 if method is None: method = miranda_methods[slot]
                 break
-        return method(ancestor, self, (cache_slot_k, self, slot, k))
+        return method(ancestor, self, (cache_slot_k, (self, slot), k))
     else:
         method = primitive_method_tables[type(self)].get(slot)
         if method is None: method = miranda_methods[slot]
         return method(self, self, k)
 
-def cache_slot_k(value, _, self, slot, k):
+def cache_slot_k(value, free_var, k):
+    self, slot = free_var
     self[slot] = value
     return k, value
 
 def show(bob, prim, k):
     slot = 'repr' if prim is repr else 'str'
-    return call(bob, slot, (show_slot_k, k))
+    return call(bob, slot, (show_slot_k, None, k))
+
+def show_slot_k(result, _, k):
+    return k, (result if isinstance(result, string_type) else '<bob>')
 
 class Bob(dict): # (Short for 'Bicicleta object'. But a lowercase bob might be a primitive instead.)
     parent = None
@@ -91,9 +95,6 @@ def list_slots(bob):
         ancestor = ancestor.parent
     return slots
 
-def show_slot_k(result, _, k):
-    return k, (result if isinstance(result, string_type) else '<bob>')
-
 class PrimCall(Bob):
     name = 'reflective slot value'
     def __init__(self, receiver):
@@ -101,7 +102,7 @@ class PrimCall(Bob):
     methods = {
         '()': lambda self, doing, k: call(doing, 'arg1', (prim_call_k, self, k))
     }
-def prim_call_k(arg1, _, self, k):
+def prim_call_k(arg1, self, k):
     assert isinstance(arg1, string_type), "Non-string slot: %r" % (arg1,)
     return call(self.receiver, arg1, k)
 
@@ -136,13 +137,13 @@ class PrimOp(Bob):
 def prim_add(self, doing, k):
     return call(doing, 'arg1', (add_k, self, k))
 
-def add_k(arg1, _, self, k):
+def add_k(arg1, self, k):
     if isinstance(arg1, number_type):
         return k, self.ancestor + arg1
     else:
         return call(arg1, 'add_to', (add_to_k, self.arg0, k))
 
-def add_to_k(arg1_add_to, _, arg0, k):
+def add_to_k(arg1_add_to, arg0, k):
     return call(Bob(arg1_add_to, {'arg1': lambda _, __, mk: (mk, arg0)}),
                 '()', k)
 
@@ -162,13 +163,13 @@ class BarePrimOp(Bob):
     def __init__(self, ancestor, arg0):
         self.pv = ancestor
 
-def sub_k(arg1, _, self, k): return k, self.pv - arg1
-def mul_k(arg1, _, self, k): return k, self.pv * arg1
-def div_k(arg1, _, self, k): return k, self.pv / arg1
-def pow_k(arg1, _, self, k): return k, self.pv ** arg1
+def sub_k(arg1, self, k): return k, self.pv - arg1
+def mul_k(arg1, self, k): return k, self.pv * arg1
+def div_k(arg1, self, k): return k, self.pv / arg1
+def pow_k(arg1, self, k): return k, self.pv ** arg1
 # XXX cmp ops need to deal with overriding:
-def eq_k(arg1, _, self, k):  return k, self.pv == arg1
-def lt_k(arg1, _, self, k):  return k, self.pv < arg1
+def eq_k(arg1, self, k):  return k, self.pv == arg1
+def lt_k(arg1, self, k):  return k, self.pv < arg1
 
 class PrimSub(BarePrimOp): name, arg1_k = '-',  staticmethod(sub_k)
 class PrimMul(BarePrimOp): name, arg1_k = '-',  staticmethod(mul_k)
@@ -191,7 +192,7 @@ number_methods = {
     '<':         primop_method(PrimLt),
 }
 
-def string_cat_k(arg1, _, self, k):
+def string_cat_k(arg1, self, k):
     assert isinstance(arg1, string_type), arg1
     return k, self.pv + arg1
 class StringCat(BarePrimOp): name, arg1_k = '++', staticmethod(string_cat_k)
@@ -256,15 +257,12 @@ class Call(object):
                                      ('call(%s, %r, lambda %s: %s)'
                                       % (rv, self.slot, kv, ck(kv))))
     def eval(self, env, k):
-        return self.receiver.eval(env, (call_k, self.slot, k))
+        return self.receiver.eval(env, (call, self.slot, k))
 
 from itertools import count
 varnum = count()
 def new_var():
     return 'v%d' % next(varnum)
-
-def call_k(bob, _, slot, k):
-    return call(bob, slot, k)
 
 def make_extend(base, name, bindings):
     extend = SelflessExtend if name is None else Extend
@@ -301,7 +299,7 @@ class SelflessExtend(Extend):
                    for slot, expr in self.bindings}
         return self.base.eval(env, (extend_k, methods, k))
 
-def extend_k(bob, _, methods, k):
+def extend_k(bob, methods, k):
     return k, Bob(bob, methods)
                   
 def make_selfless_slot_thunk(expr, env):
