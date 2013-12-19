@@ -92,7 +92,7 @@ def list_slots(bob):
     return slots
 
 
-# Miranda methods
+# Miranda methods: any you don't define yourself are supplied for you.
 
 class PrimCall(Bob):
     name = 'reflective slot value'
@@ -120,7 +120,7 @@ def miranda_show(primval, prim_to_str, bob):
     return shown
 
 
-# Primitive objects
+# Primitive object types
 
 number_type = (int, float)
 string_type = str               # XXX or unicode, in python2
@@ -219,7 +219,8 @@ primitive_method_tables = {
 root_bob = Bob(None, {})
 
 
-# Evaluation
+# Evaluator
+# Also a broken sketch of a compiler
 
 class VarRef(object):
     def __init__(self, name):
