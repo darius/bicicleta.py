@@ -3,7 +3,6 @@ Quick and dirty benchmarks of the core interpreter.
 """
 
 from core import *
-from terp import run
 
 def make_tak():
     program = parse("""

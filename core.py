@@ -10,7 +10,8 @@ from functools import reduce
 from peglet import OneResult, Parser, hug
 
 
-# Top level
+# The trampoline reifies execution state to avoid Python stack
+# overflow and make a debugging UI possible.
 
 def trampoline(state, loud=False):
     k, value = state
@@ -34,13 +35,6 @@ def whats_bouncing(k, value):
 
 def stepping(program):
     return run(program, loud=True)
-
-def run(program, loud=False):
-    if isinstance(program, string_type):
-        program = parse(program)
-    program.analyze({'sys': 0})
-    return trampoline(program.eval(global_env, (show, 'repr', None)),
-                      loud)
 
 
 # Objects
@@ -402,6 +396,49 @@ def mk_infix(left, operator, right):
 parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 
 
+# The global environment, standard library, and entry point.
+
+# We incorporate these interpreted methods by mutating the primitive
+# method tables, because:
+#   * We want to be able to test the system with just the core
+#     primitives and no library.
+#   * We don't want to slow down the primitive types by extending each
+#     'real' primitive with a Bob adding the library methods.
+
+# TODO: add some interpreted miranda methods too.
+
+sys_bob = Bob(None, {
+    'true':  lambda _, me, k: (k, True),
+    'false': lambda _, me, k: (k, False),
+})
+global_env = (sys_bob,)
+
+def run(program, loud=False):
+    if isinstance(program, string_type):
+        program = parse(program)
+    program.analyze({'sys': 0})
+    return trampoline(program.eval(global_env, None),
+                           loud)
+
+def extend_in_place(methods, overlay):
+    # TODO: deep copy? Shallow is all we need for now.
+    for slot in overlay.methods:
+        assert slot not in methods, slot
+    methods.update(overlay.methods)
+
+def load(filename):
+    expr = parse(open(filename).read())
+    expr.analyze({'sys': 0})
+    return trampoline(expr.eval(global_env, None))
+
+#if False:
+if True:
+    extend_in_place(bool_methods,    load('sys_bool.bicicleta'))
+    extend_in_place(number_methods,  load('sys_number.bicicleta'))
+    extend_in_place(string_methods,  load('sys_string.bicicleta'))
+    extend_in_place(sys_bob.methods, load('sys.bicicleta'))
+
+
 # Crude tests and benchmarks
 
 ## parse('{x: {y: {z: x ++ y{a="b"} <*> z.foo }}}')
@@ -417,16 +454,16 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 #. "call(5, '+', lambda v4: v1 = Bob(v4, {'arg1': (lambda _, v3, v2: v2(6))}); call(v1, '()', lambda v0: k(v0)))"
 
 ## run('5')
-#. '5'
+#. 5
 
 ## wtf = parse("{x=42, y=55}.x")
 ## wtf
 #. {x=42, y=55}.x
 ## run(wtf)
-#. '42'
+#. 42
 
 ## run("{y=42, x=55, z=137}.x")
-#. '55'
+#. 55
 
 ## parse("137")
 #. 137
@@ -437,46 +474,46 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 ## adding
 #. 137.+{arg1=1}.()
 ## run(adding)
-#. '138'
+#. 138
 
 ## run('3+2')
-#. '5'
+#. 5
 ## run('3*2')
-#. '6'
+#. 6
 
 ## run("137.5 - 2 - 1")
-#. '134.5'
+#. 134.5
 
 ## run(""" 5{is_string=42}.'reflective slot value'("is_string") """)
-#. '42'
+#. 42
 ## run(' 5.is_number ')
-#. 'True'
+#. True
 ## run(' "".is_number ')
-#. 'False'
+#. False
 ## run(' {}.is_number ')
-#. 'False'
+#. False
 ## run(' 5{}.is_number ')
-#. 'True'
+#. True
 
 ## run("(136 < 137).if(so=1, else=2)")
-#. '1'
+#. 1
 ## run("(137 < 137).if(so=1, else=2)")
-#. '2'
+#. 2
 ## run("137.'<' {arg1=137}.'()'.if(so=1, else=2)")
-#. '2'
+#. 2
 
 ## cmping = parse("(137 == 1).if(so=42, else=168)")
 ## repr(cmping) == repr(parse("137.'=='{arg1=1}.'()'.if{so=42, else=168}.'()'"))
 #. True
 ## run(cmping)
-#. '168'
+#. 168
 
 ## run('"howdy"')
-#. "'howdy'"
+#. 'howdy'
 ## run('("hello" == "aloha").if(so=42, else=168)')
-#. '168'
+#. 168
 ## run('("hello" == "hello").if(so=42, else=168)')
-#. '42'
+#. 42
 
 test_extend = parse("""
     {main:
@@ -486,21 +523,21 @@ test_extend = parse("""
     }.result
 """)
 ## run(test_extend)
-#. '14'
+#. 14
 
 ## run('"hey " ++ 42.str ++ " and " ++ (1136+1).str.rest')
-#. "'hey 42 and 137'"
+#. 'hey 42 and 137'
 # run('"hey {x} and {why}" % {x=84/2, why=136+1}')
 ## run("5**3")
-#. '125'
+#. 125
 
 ## run("5{}*6")
-#. '30'
+#. 30
 
 ## run("5.is_string")
-#. 'False'
+#. False
 ## run("5.is_number")
-#. 'True'
+#. True
 
 def make_fac(n):
     fac = parse("""
@@ -515,7 +552,7 @@ fac = make_fac(4)
 ## fac
 #. {env: fac={fac: ()=fac.n.=={arg1=0}.().if{so=1, else=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
 ## run(fac)
-#. '24'
+#. 24
 
 def make_fib(n):
     fib = parse("""
@@ -528,4 +565,37 @@ def make_fib(n):
     return fib
 
 ## run(make_fib(5))
-#. '8'
+#. 8
+
+
+## run('5')
+#. 5
+## run('5+6')
+#. 11
+
+## run('"hey" ++ "dude"')
+#. 'heydude'
+
+## run('"" % {x=84/2, why=136+1}')
+#. ''
+## run('"abc" % {x=84/2, why=136+1}')
+#. 'abc'
+## run(""" "{}" % {''=5} """)
+#. '5'
+
+## run('"hey {x} and {why}" % {x=84/2, why=136+1}')
+#. 'hey 42.0 and 137'
+
+## run('sys.cons {first=5, rest=sys.empty}')
+#. (5:())
+## run('sys.cons{first=5, rest=sys.cons{first="hi", rest=sys.empty}}.length')
+#. 2
+
+## run('sys.vector{elements = sys.empty}')
+#. [()]
+## run('sys.vector{elements = sys.cons {first=5, rest=sys.empty}}')
+#. [(5:())]
+## run('sys.vector{elements = sys.cons {first=5, rest=sys.empty}}.add_to(17)')
+#. [(22:())]
+## run('7 + sys.vector{elements = sys.cons {first=5, rest=sys.empty}}')
+#. [(12:())]
