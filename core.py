@@ -220,7 +220,9 @@ root_bob = Bob(None, {})
 
 
 # Evaluator
-# Also a broken sketch of a compiler
+# Also a broken sketch of a compiler.
+# senv stands for static environment: mapping each variable name to an index
+# into the runtime env.
 
 class VarRef(object):
     def __init__(self, name):
@@ -229,8 +231,8 @@ class VarRef(object):
         return self.name
     def compile(self, ck):
         return ck(self.name)
-    def analyze(self, cte):
-        self.index = cte[self.name]
+    def analyze(self, senv):
+        self.index = senv[self.name]
     def eval(self, env, k):
         return k, env[self.index]
 
@@ -241,7 +243,7 @@ class Literal(object):
         return repr(self.value)
     def compile(self, ck):
         return ck('root_bob' if self.value is root_bob else repr(self.value))
-    def analyze(self, cte):
+    def analyze(self, senv):
         pass
     def eval(self, env, k):
         return k, self.value
@@ -257,8 +259,8 @@ class Call(object):
         return self.receiver.compile(lambda rv: 
                                      ('call(%s, %r, lambda %s: %s)'
                                       % (rv, self.slot, kv, ck(kv))))
-    def analyze(self, cte):
-        self.receiver.analyze(cte)
+    def analyze(self, senv):
+        self.receiver.analyze(senv)
     def eval(self, env, k):
         return self.receiver.eval(env, (call, self.slot, k))
 
@@ -286,13 +288,13 @@ class Extend(object):
         return self.base.compile(lambda rv:
                                  (('%s = Bob(%s, {%s}); ' % (bv, rv, ', '.join(methods)))
                                   + ck(bv)))
-    def analyze(self, cte):
-        self.base.analyze(cte)
+    def analyze(self, senv):
+        self.base.analyze(senv)
         if self.name is not None:
-            cte = dict(cte)
-            cte[self.name] = len(cte)
+            senv = dict(senv)
+            senv[self.name] = len(senv)
         for _, expr in self.bindings:
-            expr.analyze(cte)
+            expr.analyze(senv)
 
     def eval(self, env, k):
         methods = {slot: make_selfish_method(expr, env)
