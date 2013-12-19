@@ -33,9 +33,6 @@ def whats_bouncing(k, value):
         print(k[0].__name__, '\t', *k[1:-1])
         k = k[-1]
 
-def stepping(program):
-    return run(program, loud=True)
-
 
 # Objects
 
