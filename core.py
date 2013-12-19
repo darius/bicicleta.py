@@ -38,7 +38,8 @@ def stepping(program):
 def run(program, loud=False):
     if isinstance(program, string_type):
         program = parse(program)
-    return trampoline(program.eval(empty_env, (show, 'repr', None)),
+    program.analyze({'sys': 0})
+    return trampoline(program.eval(global_env, (show, 'repr', None)),
                       loud)
 
 
@@ -233,8 +234,10 @@ class VarRef(object):
         return self.name
     def compile(self, ck):
         return ck(self.name)
+    def analyze(self, cte):
+        self.index = cte[self.name]
     def eval(self, env, k):
-        return k, env[self.name]
+        return k, env[self.index]
 
 class Literal(object):
     def __init__(self, value):
@@ -243,6 +246,8 @@ class Literal(object):
         return repr(self.value)
     def compile(self, ck):
         return ck('root_bob' if self.value is root_bob else repr(self.value))
+    def analyze(self, cte):
+        pass
     def eval(self, env, k):
         return k, self.value
 
@@ -257,6 +262,8 @@ class Call(object):
         return self.receiver.compile(lambda rv: 
                                      ('call(%s, %r, lambda %s: %s)'
                                       % (rv, self.slot, kv, ck(kv))))
+    def analyze(self, cte):
+        self.receiver.analyze(cte)
     def eval(self, env, k):
         return self.receiver.eval(env, (call, self.slot, k))
 
@@ -284,6 +291,14 @@ class Extend(object):
         return self.base.compile(lambda rv:
                                  (('%s = Bob(%s, {%s}); ' % (bv, rv, ', '.join(methods)))
                                   + ck(bv)))
+    def analyze(self, cte):
+        self.base.analyze(cte)
+        if self.name is not None:
+            cte = dict(cte)
+            cte[self.name] = len(cte)
+        for _, expr in self.bindings:
+            expr.analyze(cte)
+
     def eval(self, env, k):
         methods = {slot: make_slot_thunk(self.name, expr, env)
                    for slot, expr in self.bindings}
@@ -299,17 +314,14 @@ class SelflessExtend(Extend):
 def extend_k(bob, methods, k):
     return k, Bob(bob, methods)
                   
-def make_selfless_slot_thunk(expr, env):
-    return lambda _, __, k: expr.eval(env, k)
-
 def make_slot_thunk(name, expr, env):
-    def thunk(_, receiver, k):
-        new_env = dict(env)
-        new_env[name] = receiver
-        return expr.eval(new_env, k)
-    return thunk
+    return lambda _, bob, k: expr.eval(env + (bob,), k)
 
-empty_env = {}
+def make_selfless_slot_thunk(expr, env):
+    return lambda _, bob, k: expr.eval(env, k)
+
+#global_env = {'sys': root_bob}   # XXX
+global_env = (root_bob,)   # XXX
 
 
 # Parser
@@ -392,8 +404,8 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 
 # Crude tests and benchmarks
 
-## parse("x ++ y{a=b} <*> z.foo")
-#. x.++{arg1=y{a=b}}.().<*>{arg1=z.foo}.()
+## parse('{x: {y: {z: x ++ y{a="b"} <*> z.foo }}}')
+#. {x: arg1={y: arg1={z: arg1=x.++{arg1=y{a='b'}}.().<*>{arg1=z.foo}.()}}}
 
 ## parse('5')
 #. 5
@@ -418,8 +430,8 @@ parse = OneResult(Parser(program_grammar, int=int, float=float, **globals()))
 
 ## parse("137")
 #. 137
-## parse("137[yo=dude]")
-#. 137{yo=dude}.[]
+## parse('137[yo="dude"]')
+#. 137{yo='dude'}.[]
 
 ## adding = parse("137.'+' {arg1=1}.'()'")
 ## adding
