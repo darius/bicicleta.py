@@ -295,12 +295,11 @@ class Extend(object):
             expr.analyze(cte)
 
     def eval(self, env, k):
-        methods = {slot: make_slot_thunk(self.name, expr, env)
+        methods = {slot: make_slot_thunk(expr, env)
                    for slot, expr in self.bindings}
         return self.base.eval(env, (extend_k, methods, k))
 
 class SelflessExtend(Extend):
-    # (We needn't special-case this; it's an optimization.)
     def eval(self, env, k):
         methods = {slot: make_selfless_slot_thunk(expr, env)
                    for slot, expr in self.bindings}
@@ -308,8 +307,8 @@ class SelflessExtend(Extend):
 
 def extend_k(bob, methods, k):
     return k, Bob(bob, methods)
-                  
-def make_slot_thunk(name, expr, env):
+
+def make_slot_thunk(expr, env):
     return lambda _, bob, k: expr.eval(env + (bob,), k)
 
 def make_selfless_slot_thunk(expr, env):
