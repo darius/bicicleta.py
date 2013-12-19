@@ -314,9 +314,6 @@ def make_slot_thunk(name, expr, env):
 def make_selfless_slot_thunk(expr, env):
     return lambda _, bob, k: expr.eval(env, k)
 
-#global_env = {'sys': root_bob}   # XXX
-global_env = (root_bob,)   # XXX
-
 
 # Parser
 
@@ -568,13 +565,7 @@ def make_fib(n):
 #. 8
 
 
-## run('5')
-#. 5
-## run('5+6')
-#. 11
-
-## run('"hey" ++ "dude"')
-#. 'heydude'
+# The following tests depend on the standard library being loaded.
 
 ## run('"" % {x=84/2, why=136+1}')
 #. ''
