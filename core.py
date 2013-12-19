@@ -216,10 +216,21 @@ primitive_method_tables = {
 root_bob = Bob(None, {})
 
 
-# Evaluator
-# Also a broken sketch of a compiler.
-# senv stands for static environment: mapping each variable name to an index
-# into the runtime env.
+# Evaluator plus trivial compiler.
+# Glossary:
+#   senv: static environment: mapping each variable name to an index
+#         into the runtime env.
+#   ck: compiler continuation.
+#   py: python expression.
+
+def bounce(ck, py):
+    # TODO: optimize
+    return "(%s, %s)" % (ck, py)
+
+def py_name(name):
+    # Avoid Bicicleta names shadowing Python ones when compiled to
+    # Python.
+    return '__' if name is None else name + '_b'
 
 class VarRef(object):
     def __init__(self, name):
@@ -227,7 +238,7 @@ class VarRef(object):
     def __repr__(self):
         return self.name
     def compile(self, ck):
-        return ck(self.name)
+        return bounce(ck, py_name(self.name))
     def analyze(self, senv):
         self.index = senv[self.name]
     def eval(self, env, k):
@@ -239,7 +250,8 @@ class Literal(object):
     def __repr__(self):
         return repr(self.value)
     def compile(self, ck):
-        return ck('root_bob' if self.value is root_bob else repr(self.value))
+        py = 'root_bob' if self.value is root_bob else repr(self.value)
+        return bounce(ck, py)
     def analyze(self, senv):
         pass
     def eval(self, env, k):
@@ -252,19 +264,11 @@ class Call(object):
     def __repr__(self):
         return '%s.%s' % (self.receiver, self.slot)
     def compile(self, ck):
-        kv = new_var()
-        return self.receiver.compile(lambda rv: 
-                                     ('call(%s, %r, lambda %s: %s)'
-                                      % (rv, self.slot, kv, ck(kv))))
+        return self.receiver.compile('(call, %r, %s)' % (self.slot, ck))
     def analyze(self, senv):
         self.receiver.analyze(senv)
     def eval(self, env, k):
         return self.receiver.eval(env, (call, self.slot, k))
-
-from itertools import count
-varnum = count()
-def new_var():
-    return 'v%d' % next(varnum)
 
 class Extend(object):
     def __init__(self, base, name, bindings):
@@ -277,14 +281,11 @@ class Extend(object):
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
     def compile(self, ck):
-        bv, subk = new_var(), new_var()
-        name = new_var() if self.name is None else self.name
-        methods = [('%r: (lambda _, %s, %s: %s)'
-                    % (slot, name, subk, expr.compile(lambda e: '%s(%s)' % (subk, e))))
-                   for slot, expr in self.bindings]
-        return self.base.compile(lambda rv:
-                                 (('%s = Bob(%s, {%s}); ' % (bv, rv, ', '.join(methods)))
-                                  + ck(bv)))
+        me = py_name(self.name)
+        methods_expr = (
+            '{%s}' % (', '.join('%r: (lambda _, %s, k: %s)' % (slot, me, expr.compile('k'))
+                                for slot, expr in self.bindings)))
+        return self.base.compile('(extend_k, %s, %s)' % (methods_expr, ck))
     def analyze(self, senv):
         self.base.analyze(senv)
         if self.name is not None:
@@ -408,6 +409,7 @@ sys_bob = Bob(None, {
     'false': lambda _, me, k: (k, False),
 })
 global_env = (sys_bob,)
+sys_b = sys_bob # For reference by compiled programs.
 
 def run(program, loud=False):
     if isinstance(program, string_type):
@@ -444,10 +446,21 @@ if True:
 #. 5
 
 # XXX Obviously compiling is not here yet:
-## parse('5').compile(lambda x: 'k(%s)' % x)
-#. 'k(5)'
-## parse('5+6').compile(lambda x: 'k(%s)' % x)
-#. "call(5, '+', lambda v4: v1 = Bob(v4, {'arg1': (lambda _, v3, v2: v2(6))}); call(v1, '()', lambda v0: k(v0)))"
+## parse('5').compile('k')
+#. '(k, 5)'
+## parse('5+6').compile('k')
+#. "((call, '+', (extend_k, {'arg1': (lambda _, __, k: (k, 6))}, (call, '()', k))), 5)"
+
+def try_compile(program):
+    if isinstance(program, string_type):
+        program = parse(program)
+    py = program.compile('None')
+    print(py)
+    return trampoline(eval(py))
+
+## try_compile('5+6')
+#. ((call, '+', (extend_k, {'arg1': (lambda _, __, k: (k, 6))}, (call, '()', None))), 5)
+#. 11
 
 ## run('5')
 #. 5
@@ -520,6 +533,10 @@ test_extend = parse("""
 """)
 ## run(test_extend)
 #. 14
+## try_compile(test_extend)
+#. ((extend_k, {'three': (lambda _, main_b, k: ((extend_k, {'x': (lambda _, me_b, k: (k, 3)), 'xx': (lambda _, me_b, k: ((call, 'x', (call, '+', (extend_k, {'arg1': (lambda _, __, k: ((call, 'x', k), me_b))}, (call, '()', k)))), me_b))}, k), root_bob)), 'four': (lambda _, main_b, k: ((call, 'three', (extend_k, {'x': (lambda _, __, k: (k, 4))}, k)), main_b)), 'result': (lambda _, main_b, k: ((call, 'three', (call, 'xx', (call, '+', (extend_k, {'arg1': (lambda _, __, k: ((call, 'four', (call, 'xx', k)), main_b))}, (call, '()', k))))), main_b))}, (call, 'result', None)), root_bob)
+#. 14
+
 
 ## run('"hey " ++ 42.str ++ " and " ++ (1136+1).str.rest')
 #. 'hey 42 and 137'
@@ -548,6 +565,9 @@ fac = make_fac(4)
 ## fac
 #. {env: fac={fac: ()=fac.n.=={arg1=0}.().if{so=1, else=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
 ## run(fac)
+#. 24
+## try_compile(fac)
+#. ((extend_k, {'fac': (lambda _, env_b, k: ((extend_k, {'()': (lambda _, fac_b, k: ((call, 'n', (call, '==', (extend_k, {'arg1': (lambda _, __, k: (k, 0))}, (call, '()', (call, 'if', (extend_k, {'so': (lambda _, __, k: (k, 1)), 'else': (lambda _, __, k: ((call, 'n', (call, '*', (extend_k, {'arg1': (lambda _, __, k: ((call, 'fac', (extend_k, {'n': (lambda _, __, k: ((call, 'n', (call, '-', (extend_k, {'arg1': (lambda _, __, k: (k, 1))}, (call, '()', k)))), fac_b))}, (call, '()', k))), env_b))}, (call, '()', k)))), fac_b))}, (call, '()', k))))))), fac_b))}, k), root_bob))}, (call, 'fac', (extend_k, {'n': (lambda _, __, k: (k, 4))}, (call, '()', None)))), root_bob)
 #. 24
 
 def make_fib(n):
