@@ -220,12 +220,28 @@ root_bob = Bob(None, {})
 # Glossary:
 #   senv: static environment: mapping each variable name to an index
 #         into the runtime env.
-#   ck: compiler continuation.
-#   py: python expression.
+#   py_foo: python expression.
 
-def bounce(ck, py):
-    # TODO: optimize
-    return "(%s, %s)" % (ck, py)
+def py_compile(expr, py_k='None'):
+    return py_render(expr.compile(py_k))
+
+def py_render(py):
+    if isinstance(py, str):
+        return py
+    py_fn, py_free_var, py_k = py
+    return '(%s, %s, %s)' % tuple(map(py_render, (py_fn, py_free_var, py_k)))
+
+def py_apply_cont(py_k, py):
+    if isinstance(py_k, str):
+        return '(%s, %s)' % (py_k, py_render(py))    
+    py_fn, py_free_var, py_k = py_k
+    return '%s(%s, %s, %s)' % (py_render(py_fn),
+                               py_render(py),
+                               py_render(py_free_var),
+                               py_render(py_k))
+
+def py_push_cont(py_fn, py_free_var, py_k):
+    return (py_fn, py_free_var, py_k)
 
 def py_name(name):
     # Avoid Bicicleta names shadowing Python ones when compiled to
@@ -237,8 +253,8 @@ class VarRef(object):
         self.name = name
     def __repr__(self):
         return self.name
-    def compile(self, ck):
-        return bounce(ck, py_name(self.name))
+    def compile(self, py_k):
+        return py_apply_cont(py_k, py_name(self.name))
     def analyze(self, senv):
         self.index = senv[self.name]
     def eval(self, env, k):
@@ -249,9 +265,9 @@ class Literal(object):
         self.value = value
     def __repr__(self):
         return repr(self.value)
-    def compile(self, ck):
+    def compile(self, py_k):
         py = 'root_bob' if self.value is root_bob else repr(self.value)
-        return bounce(ck, py)
+        return py_apply_cont(py_k, py)
     def analyze(self, senv):
         pass
     def eval(self, env, k):
@@ -263,8 +279,8 @@ class Call(object):
         self.slot = slot
     def __repr__(self):
         return '%s.%s' % (self.receiver, self.slot)
-    def compile(self, ck):
-        return self.receiver.compile('(call, %r, %s)' % (self.slot, ck))
+    def compile(self, py_k):
+        return self.receiver.compile(py_push_cont('call', repr(self.slot), py_k))
     def analyze(self, senv):
         self.receiver.analyze(senv)
     def eval(self, env, k):
@@ -280,12 +296,13 @@ class Extend(object):
                              self.name + ': ' if self.name else '',
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
-    def compile(self, ck):
+    def compile(self, py_k):
         me = py_name(self.name)
         methods_expr = (
-            '{%s}' % (', '.join('%r: (lambda _, %s, k: %s)' % (slot, me, expr.compile('k'))
+            '{%s}' % (', '.join('%r: (lambda _, %s, k: %s)' % (slot, me, py_render(expr.compile('k')))
                                 for slot, expr in self.bindings)))
-        return self.base.compile('(extend_k, %s, %s)' % (methods_expr, ck))
+        assert isinstance(methods_expr, str)
+        return self.base.compile(py_push_cont('extend_k', methods_expr, py_k))
     def analyze(self, senv):
         self.base.analyze(senv)
         if self.name is not None:
@@ -446,20 +463,20 @@ if True:
 #. 5
 
 # XXX Obviously compiling is not here yet:
-## parse('5').compile('k')
+## py_compile(parse('5'), 'k')
 #. '(k, 5)'
-## parse('5+6').compile('k')
-#. "((call, '+', (extend_k, {'arg1': (lambda _, __, k: (k, 6))}, (call, '()', k))), 5)"
+## py_compile(parse('5+6'), 'k')
+#. "call(5, '+', (extend_k, {'arg1': (lambda _, __, k: (k, 6))}, (call, '()', k)))"
 
 def try_compile(program):
     if isinstance(program, string_type):
         program = parse(program)
-    py = program.compile('None')
+    py = py_compile(program)
     print(py)
     return trampoline(eval(py))
 
 ## try_compile('5+6')
-#. ((call, '+', (extend_k, {'arg1': (lambda _, __, k: (k, 6))}, (call, '()', None))), 5)
+#. call(5, '+', (extend_k, {'arg1': (lambda _, __, k: (k, 6))}, (call, '()', None)))
 #. 11
 
 ## run('5')
@@ -534,7 +551,7 @@ test_extend = parse("""
 ## run(test_extend)
 #. 14
 ## try_compile(test_extend)
-#. ((extend_k, {'three': (lambda _, main_b, k: ((extend_k, {'x': (lambda _, me_b, k: (k, 3)), 'xx': (lambda _, me_b, k: ((call, 'x', (call, '+', (extend_k, {'arg1': (lambda _, __, k: ((call, 'x', k), me_b))}, (call, '()', k)))), me_b))}, k), root_bob)), 'four': (lambda _, main_b, k: ((call, 'three', (extend_k, {'x': (lambda _, __, k: (k, 4))}, k)), main_b)), 'result': (lambda _, main_b, k: ((call, 'three', (call, 'xx', (call, '+', (extend_k, {'arg1': (lambda _, __, k: ((call, 'four', (call, 'xx', k)), main_b))}, (call, '()', k))))), main_b))}, (call, 'result', None)), root_bob)
+#. extend_k(root_bob, {'three': (lambda _, main_b, k: extend_k(root_bob, {'x': (lambda _, me_b, k: (k, 3)), 'xx': (lambda _, me_b, k: call(me_b, 'x', (call, '+', (extend_k, {'arg1': (lambda _, __, k: call(me_b, 'x', k))}, (call, '()', k)))))}, k)), 'four': (lambda _, main_b, k: call(main_b, 'three', (extend_k, {'x': (lambda _, __, k: (k, 4))}, k))), 'result': (lambda _, main_b, k: call(main_b, 'three', (call, 'xx', (call, '+', (extend_k, {'arg1': (lambda _, __, k: call(main_b, 'four', (call, 'xx', k)))}, (call, '()', k))))))}, (call, 'result', None))
 #. 14
 
 
@@ -567,7 +584,7 @@ fac = make_fac(4)
 ## run(fac)
 #. 24
 ## try_compile(fac)
-#. ((extend_k, {'fac': (lambda _, env_b, k: ((extend_k, {'()': (lambda _, fac_b, k: ((call, 'n', (call, '==', (extend_k, {'arg1': (lambda _, __, k: (k, 0))}, (call, '()', (call, 'if', (extend_k, {'so': (lambda _, __, k: (k, 1)), 'else': (lambda _, __, k: ((call, 'n', (call, '*', (extend_k, {'arg1': (lambda _, __, k: ((call, 'fac', (extend_k, {'n': (lambda _, __, k: ((call, 'n', (call, '-', (extend_k, {'arg1': (lambda _, __, k: (k, 1))}, (call, '()', k)))), fac_b))}, (call, '()', k))), env_b))}, (call, '()', k)))), fac_b))}, (call, '()', k))))))), fac_b))}, k), root_bob))}, (call, 'fac', (extend_k, {'n': (lambda _, __, k: (k, 4))}, (call, '()', None)))), root_bob)
+#. extend_k(root_bob, {'fac': (lambda _, env_b, k: extend_k(root_bob, {'()': (lambda _, fac_b, k: call(fac_b, 'n', (call, '==', (extend_k, {'arg1': (lambda _, __, k: (k, 0))}, (call, '()', (call, 'if', (extend_k, {'so': (lambda _, __, k: (k, 1)), 'else': (lambda _, __, k: call(fac_b, 'n', (call, '*', (extend_k, {'arg1': (lambda _, __, k: call(env_b, 'fac', (extend_k, {'n': (lambda _, __, k: call(fac_b, 'n', (call, '-', (extend_k, {'arg1': (lambda _, __, k: (k, 1))}, (call, '()', k)))))}, (call, '()', k))))}, (call, '()', k)))))}, (call, '()', k))))))))}, k))}, (call, 'fac', (extend_k, {'n': (lambda _, __, k: (k, 4))}, (call, '()', None))))
 #. 24
 
 def make_fib(n):
