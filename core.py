@@ -235,10 +235,14 @@ def py_apply_cont(py_k, py):
     if isinstance(py_k, str):
         return '(%s, %s)' % (py_k, py_render(py))    
     py_fn, py_free_var, py_k = py_k
-    return '%s(%s, %s, %s)' % (py_render(py_fn),
-                               py_render(py),
-                               py_render(py_free_var),
-                               py_render(py_k))
+    if py_fn == 'extend_k':
+        return py_apply_cont(py_k, 'Bob(%s, %s)' % (py_render(py),
+                                                    py_render(py_free_var)))
+    else:
+        return '%s(%s, %s, %s)' % (py_render(py_fn),
+                                   py_render(py),
+                                   py_render(py_free_var),
+                                   py_render(py_k))
 
 def py_push_cont(py_fn, py_free_var, py_k):
     return (py_fn, py_free_var, py_k)
@@ -551,7 +555,7 @@ test_extend = parse("""
 ## run(test_extend)
 #. 14
 ## try_compile(test_extend)
-#. extend_k(root_bob, {'three': (lambda _, main_b, k: extend_k(root_bob, {'x': (lambda _, me_b, k: (k, 3)), 'xx': (lambda _, me_b, k: call(me_b, 'x', (call, '+', (extend_k, {'arg1': (lambda _, __, k: call(me_b, 'x', k))}, (call, '()', k)))))}, k)), 'four': (lambda _, main_b, k: call(main_b, 'three', (extend_k, {'x': (lambda _, __, k: (k, 4))}, k))), 'result': (lambda _, main_b, k: call(main_b, 'three', (call, 'xx', (call, '+', (extend_k, {'arg1': (lambda _, __, k: call(main_b, 'four', (call, 'xx', k)))}, (call, '()', k))))))}, (call, 'result', None))
+#. call(Bob(root_bob, {'three': (lambda _, main_b, k: (k, Bob(root_bob, {'x': (lambda _, me_b, k: (k, 3)), 'xx': (lambda _, me_b, k: call(me_b, 'x', (call, '+', (extend_k, {'arg1': (lambda _, __, k: call(me_b, 'x', k))}, (call, '()', k)))))}))), 'four': (lambda _, main_b, k: call(main_b, 'three', (extend_k, {'x': (lambda _, __, k: (k, 4))}, k))), 'result': (lambda _, main_b, k: call(main_b, 'three', (call, 'xx', (call, '+', (extend_k, {'arg1': (lambda _, __, k: call(main_b, 'four', (call, 'xx', k)))}, (call, '()', k))))))}), 'result', None)
 #. 14
 
 
@@ -584,7 +588,7 @@ fac = make_fac(4)
 ## run(fac)
 #. 24
 ## try_compile(fac)
-#. extend_k(root_bob, {'fac': (lambda _, env_b, k: extend_k(root_bob, {'()': (lambda _, fac_b, k: call(fac_b, 'n', (call, '==', (extend_k, {'arg1': (lambda _, __, k: (k, 0))}, (call, '()', (call, 'if', (extend_k, {'so': (lambda _, __, k: (k, 1)), 'else': (lambda _, __, k: call(fac_b, 'n', (call, '*', (extend_k, {'arg1': (lambda _, __, k: call(env_b, 'fac', (extend_k, {'n': (lambda _, __, k: call(fac_b, 'n', (call, '-', (extend_k, {'arg1': (lambda _, __, k: (k, 1))}, (call, '()', k)))))}, (call, '()', k))))}, (call, '()', k)))))}, (call, '()', k))))))))}, k))}, (call, 'fac', (extend_k, {'n': (lambda _, __, k: (k, 4))}, (call, '()', None))))
+#. call(Bob(root_bob, {'fac': (lambda _, env_b, k: (k, Bob(root_bob, {'()': (lambda _, fac_b, k: call(fac_b, 'n', (call, '==', (extend_k, {'arg1': (lambda _, __, k: (k, 0))}, (call, '()', (call, 'if', (extend_k, {'so': (lambda _, __, k: (k, 1)), 'else': (lambda _, __, k: call(fac_b, 'n', (call, '*', (extend_k, {'arg1': (lambda _, __, k: call(env_b, 'fac', (extend_k, {'n': (lambda _, __, k: call(fac_b, 'n', (call, '-', (extend_k, {'arg1': (lambda _, __, k: (k, 1))}, (call, '()', k)))))}, (call, '()', k))))}, (call, '()', k)))))}, (call, '()', k))))))))})))}), 'fac', (extend_k, {'n': (lambda _, __, k: (k, 4))}, (call, '()', None)))
 #. 24
 
 def make_fib(n):
