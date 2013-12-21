@@ -303,7 +303,8 @@ class Extend(object):
     def compile(self, py_k):
         me = py_name(self.name)
         methods_expr = (
-            '{%s}' % (', '.join('%r: (lambda _, %s, k: %s)' % (slot, me, py_render(expr.compile('k')))
+            '{%s}' % (', '.join('%r: (lambda _, %s, k: %s)'
+                                % (slot, me, py_render(expr.compile('k')))
                                 for slot, expr in self.bindings)))
         assert isinstance(methods_expr, str)
         return self.base.compile(py_push_cont('extend_k', methods_expr, py_k))
