@@ -220,7 +220,9 @@ root_bob = Bob(None, {})
 # Glossary:
 #   senv: static environment: mapping each variable name to an index
 #         into the runtime env.
-#   py_foo: python expression.
+#   py_foo: represents a python expression.
+#     Either a string of literal code, or a 3-tuple for an expression to
+#     construct a 3-tuple.
 
 def py_compile(expr, py_k='None'):
     return py_render(expr.compile(py_k))
