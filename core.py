@@ -154,15 +154,15 @@ class BarePrimOp(Bob):
         '()': lambda self, doing, k: call(doing, 'arg1', (self.arg1_k, self, k))
     }
     def __init__(self, ancestor, arg0):
-        self.pv = ancestor
+        self.primval = ancestor
 
-def sub_k(arg1, self, k): return k, self.pv - arg1
-def mul_k(arg1, self, k): return k, self.pv * arg1
-def div_k(arg1, self, k): return k, self.pv / arg1
-def pow_k(arg1, self, k): return k, self.pv ** arg1
+def sub_k(arg1, self, k): return k, self.primval - arg1
+def mul_k(arg1, self, k): return k, self.primval * arg1
+def div_k(arg1, self, k): return k, self.primval / arg1
+def pow_k(arg1, self, k): return k, self.primval ** arg1
 # XXX cmp ops need to deal with overriding:
-def eq_k(arg1, self, k):  return k, self.pv == arg1
-def lt_k(arg1, self, k):  return k, self.pv < arg1
+def eq_k(arg1, self, k):  return k, self.primval == arg1
+def lt_k(arg1, self, k):  return k, self.primval < arg1
 
 class PrimSub(BarePrimOp): name, arg1_k = '-',  staticmethod(sub_k)
 class PrimMul(BarePrimOp): name, arg1_k = '-',  staticmethod(mul_k)
@@ -187,7 +187,7 @@ number_methods = {
 
 def string_cat_k(arg1, self, k):
     assert isinstance(arg1, string_type), arg1
-    return k, self.pv + arg1
+    return k, self.primval + arg1
 class StringCat(BarePrimOp): name, arg1_k = '++', staticmethod(string_cat_k)
 
 string_methods = {
