@@ -13,9 +13,9 @@ from peglet import OneResult, Parser, hug
 # The trampoline reifies execution state to avoid Python stack
 # overflow and make a debugging UI possible.
 
-def trampoline(state, loud=False):
+def trampoline(state, trace=False):
     k, value = state
-    if loud:
+    if trace:
         while k:
             whats_bouncing(k, value)
             print('')
@@ -433,12 +433,17 @@ sys_bob = Bob(None, {
 global_env = (sys_bob,)
 sys_b = sys_bob # For reference by compiled programs.
 
-def run(program, loud=False):
+def run(program, compile=False, dump=False, trace=False):
     if isinstance(program, string_type):
         program = parse(program)
     program.analyze({'sys': 0})
-    return trampoline(program.eval(global_env, None),
-                           loud)
+    if compile:
+        py = py_compile(program)
+        if dump: print(py)
+        state = eval(py)
+    else:
+        state = program.eval(global_env, None)
+    return trampoline(state, trace)
 
 def extend_in_place(methods, overlay):
     # TODO: deep copy? Shallow is all we need for now.
@@ -446,17 +451,16 @@ def extend_in_place(methods, overlay):
         assert slot not in methods, slot
     methods.update(overlay.methods)
 
-def load(filename):
-    expr = parse(open(filename).read())
-    expr.analyze({'sys': 0})
-    return trampoline(expr.eval(global_env, None))
+def load(filename, compile=False):
+    return run(open(filename).read(), compile=compile)
 
 #if False:
 if True:
-    extend_in_place(bool_methods,    load('sys_bool.bicicleta'))
-    extend_in_place(number_methods,  load('sys_number.bicicleta'))
-    extend_in_place(string_methods,  load('sys_string.bicicleta'))
-    extend_in_place(sys_bob.methods, load('sys.bicicleta'))
+    compiling = True
+    extend_in_place(bool_methods,    load('sys_bool.bicicleta',   compile=compiling))
+    extend_in_place(number_methods,  load('sys_number.bicicleta', compile=compiling))
+    extend_in_place(string_methods,  load('sys_string.bicicleta', compile=compiling))
+    extend_in_place(sys_bob.methods, load('sys.bicicleta',        compile=compiling))
 
 
 # Crude tests and benchmarks
@@ -472,14 +476,10 @@ if True:
 ## py_compile(parse('5+6'), 'k')
 #. "call(5, '+', (extend_k, {'arg1': (lambda _, __, k: (k, 6))}, (call, '()', k)))"
 
-def try_compile(program):
-    if isinstance(program, string_type):
-        program = parse(program)
-    py = py_compile(program)
-    print(py)
-    return trampoline(eval(py))
+def dump_compile(program):
+    return run(program, compile=True, dump=True)
 
-## try_compile('5+6')
+## dump_compile('5+6')
 #. call(5, '+', (extend_k, {'arg1': (lambda _, __, k: (k, 6))}, (call, '()', None)))
 #. 11
 
@@ -554,7 +554,7 @@ test_extend = parse("""
 """)
 ## run(test_extend)
 #. 14
-## try_compile(test_extend)
+## dump_compile(test_extend)
 #. call(Bob(root_bob, {'three': (lambda _, main_b, k: (k, Bob(root_bob, {'x': (lambda _, me_b, k: (k, 3)), 'xx': (lambda _, me_b, k: call(me_b, 'x', (call, '+', (extend_k, {'arg1': (lambda _, __, k: call(me_b, 'x', k))}, (call, '()', k)))))}))), 'four': (lambda _, main_b, k: call(main_b, 'three', (extend_k, {'x': (lambda _, __, k: (k, 4))}, k))), 'result': (lambda _, main_b, k: call(main_b, 'three', (call, 'xx', (call, '+', (extend_k, {'arg1': (lambda _, __, k: call(main_b, 'four', (call, 'xx', k)))}, (call, '()', k))))))}), 'result', None)
 #. 14
 
@@ -587,7 +587,7 @@ fac = make_fac(4)
 #. {env: fac={fac: ()=fac.n.=={arg1=0}.().if{so=1, else=fac.n.*{arg1=env.fac{n=fac.n.-{arg1=1}.()}.()}.()}.()}}.fac{n=4}.()
 ## run(fac)
 #. 24
-## try_compile(fac)
+## dump_compile(fac)
 #. call(Bob(root_bob, {'fac': (lambda _, env_b, k: (k, Bob(root_bob, {'()': (lambda _, fac_b, k: call(fac_b, 'n', (call, '==', (extend_k, {'arg1': (lambda _, __, k: (k, 0))}, (call, '()', (call, 'if', (extend_k, {'so': (lambda _, __, k: (k, 1)), 'else': (lambda _, __, k: call(fac_b, 'n', (call, '*', (extend_k, {'arg1': (lambda _, __, k: call(env_b, 'fac', (extend_k, {'n': (lambda _, __, k: call(fac_b, 'n', (call, '-', (extend_k, {'arg1': (lambda _, __, k: (k, 1))}, (call, '()', k)))))}, (call, '()', k))))}, (call, '()', k)))))}, (call, '()', k))))))))})))}), 'fac', (extend_k, {'n': (lambda _, __, k: (k, 4))}, (call, '()', None)))
 #. 24
 
