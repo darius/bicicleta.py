@@ -218,7 +218,8 @@ root_bob = Bob(None, {})
 # Evaluator plus trivial compiler.
 # Glossary:
 #   senv: static environment: mapping each variable name to an index
-#         into the runtime env.
+#     into the interpreter's runtime env. (But the compiler uses the
+#     Python environment instead.)
 #   py_foo: represents a python expression.
 #     Either a string of literal code, or a 3-tuple for an expression to
 #     construct a 3-tuple.
