@@ -160,7 +160,6 @@ def sub_k(arg1, self, k): return k, self.primval - arg1
 def mul_k(arg1, self, k): return k, self.primval * arg1
 def div_k(arg1, self, k): return k, self.primval / arg1
 def pow_k(arg1, self, k): return k, self.primval ** arg1
-# XXX cmp ops need to deal with overriding:
 def eq_k(arg1, self, k):  return k, self.primval == arg1
 def lt_k(arg1, self, k):  return k, self.primval < arg1
 
@@ -384,8 +383,6 @@ blank       = !\n (?:\s|#.*)
 
 _           = (?:\s|#.*)*
 """
-# TODO: support backslashes in '' and ""
-# TODO: foo(name: x=y) [if actually wanted]
 
 empty_literal = Literal(root_bob)
 
@@ -469,7 +466,6 @@ if True:
 ## parse('5')
 #. 5
 
-# XXX Obviously compiling is not here yet:
 ## py_compile(parse('5'), 'k')
 #. '(k, 5)'
 ## py_compile(parse('5+6'), 'k')
