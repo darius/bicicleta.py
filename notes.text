@@ -90,6 +90,13 @@ Result: imperceptible. And the code is a little nicer before than it'd
 be this way for primitive method lookup. But come back to this after
 incorporating miranda methods into the primitive method tabels.
 
+Intern all the slot names? Seems to make no difference. (People on
+e.g. stackoverflow say that interning keys in Python speeds up
+dictionary lookup. Obviously it should if the dict knows that the key
+you pass it was interned; but Python doesn't have a way like Common
+Lisp to say this.) (I'd expect no speedup on compiled code since
+Python string literals are interned already.)
+
 
 DONE:
 
