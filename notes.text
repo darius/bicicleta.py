@@ -105,8 +105,10 @@ Intern all the slot names? Seems to make no difference. (People on
 e.g. stackoverflow say that interning keys in Python speeds up
 dictionary lookup. Obviously it should if the dict knows that the key
 you pass it was interned; but Python doesn't have a way like Common
-Lisp to say this.) (I'd expect no speedup on compiled code since
-Python string literals are interned already.)
+Lisp to say this. It turns out the Python string struct includes a
+field saying whether it's an intern result.) (I'd expect no speedup on
+compiled code since Python string literals are interned already; but
+any speed difference on the interpreter was lost in the noise.)
 
 
 DONE:
