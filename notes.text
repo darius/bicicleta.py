@@ -19,7 +19,7 @@ finish parser
 compiler:
 (I question improving the compiler as the next goal, because 
 nobody much cares about speedup of a language nobody uses.)
-  don't call() known methods
+  don't call() known methods; invoke them directly.
     {me: foo=...me.foo}
     {foo=...}.foo
     0 < blah
