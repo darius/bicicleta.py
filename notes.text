@@ -58,13 +58,24 @@ that possible?
 Replace the trampoline with a state machine in one giant while loop.
 Change the nested-tuple trampoline to a stack in an array.
 
+Incorporate the miranda methods into the primitive method tables;
+then call() on a primitive would never check more than one table.
+
+Currently Bob inherits from dict where this self-dict is the slot
+cache. If the self-dict were the methods table instead, then method
+lookup might get slightly faster (we'd implement forwarding to the
+parent using __missing__. Another refinement: different concrete Bob
+classes for whether the parent is a primitive, another Bob, or
+nothing, with a different __missing__ implementation for each; this
+moves that test from lookup time to object-creation time.) Cost:
+accessing the cache is self.cache[slot] instead of self[slot]. I
+haven't measured any of this. It seemed obviously the way to go for
+JS, and I'm just mentioning it here for Python for completeness.
+
 Would it be faster with closures for continuations, instead of global
 functions plus their arguments? I did things the latter way for the
 sake of debugger access; but we could use callable objects that also
 offer a debugger method.
-
-Incorporate the miranda methods into the primitive method tables;
-then call() on a primitive would never check more than one table.
 
 trampoline: would trampolining only tail calls be enough? and faster?
 (Is it even possible?) I'd guess it may be enough for
