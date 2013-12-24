@@ -7,7 +7,12 @@ function trampoline(state, trace) {
     var k, value, fn, freeVar;
     k = state[0], value = state[1];
     if (trace) {
-        assert(false);
+        while (k !== null) {
+            whatsBouncing(k, value);
+            fn = k[0], freeVar = k[1], k = k[2];
+            state = fn(value, freeVar, k);
+            k = state[0], value = state[1];        
+        }
     } else {
         while (k !== null) {
             fn = k[0], freeVar = k[1], k = k[2];
@@ -16,6 +21,15 @@ function trampoline(state, trace) {
         }
     }
     return value;
+}
+
+function whatsBouncing(k, value) {
+    console.log(':', value);
+    while (k) {
+        console.log(k[0], '\t', k[1]);
+        k = k[2];
+    }
+    console.log();
 }
 
 function call(bob, slot, k) {
@@ -63,6 +77,8 @@ function makeBob(parent, methods) {
 function extendK(bob, methods, k) {
     return [k, makeBob(bob, methods)];
 }
+
+var rootBob = makeBob(null, {}); // XXX just null would do, right?
 
 var mirandaMethods = {
     '$is_number': function(_, me, k) { return [k, false]; },

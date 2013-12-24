@@ -276,7 +276,7 @@ class Literal(object):
     def __repr__(self):
         return repr(self.value)
     def compile(self, js_k):
-        py = 'root_bob' if self.value is root_bob else js_repr(self.value)
+        py = 'rootBob' if self.value is root_bob else js_repr(self.value)
         return js_apply_cont(js_k, py)
     def analyze(self, senv):
         pass
@@ -560,7 +560,7 @@ test_extend = parse("""
 ## run(test_extend)
 #. 14
 ## dump_compile(test_extend)
-#. call(makeBob(root_bob, {'$three': function(_, main_b, k) { return [k, makeBob(root_bob, {'$x': function(_, me_b, k) { return [k, 3]; }, '$xx': function(_, me_b, k) { return call(me_b, '$x', [call, '$+', [extendK, {'$arg1': function(_, __, k) { return call(me_b, '$x', k); }}, [call, '$()', k]]]); }})]; }, '$four': function(_, main_b, k) { return call(main_b, '$three', [extendK, {'$x': function(_, __, k) { return [k, 4]; }}, k]); }, '$result': function(_, main_b, k) { return call(main_b, '$three', [call, '$xx', [call, '$+', [extendK, {'$arg1': function(_, __, k) { return call(main_b, '$four', [call, '$xx', k]); }}, [call, '$()', k]]]]); }}), '$result', null)
+#. call(makeBob(rootBob, {'$three': function(_, main_b, k) { return [k, makeBob(rootBob, {'$x': function(_, me_b, k) { return [k, 3]; }, '$xx': function(_, me_b, k) { return call(me_b, '$x', [call, '$+', [extendK, {'$arg1': function(_, __, k) { return call(me_b, '$x', k); }}, [call, '$()', k]]]); }})]; }, '$four': function(_, main_b, k) { return call(main_b, '$three', [extendK, {'$x': function(_, __, k) { return [k, 4]; }}, k]); }, '$result': function(_, main_b, k) { return call(main_b, '$three', [call, '$xx', [call, '$+', [extendK, {'$arg1': function(_, __, k) { return call(main_b, '$four', [call, '$xx', k]); }}, [call, '$()', k]]]]); }}), '$result', null)
 
 
 ## run('"hey " ++ 42.str ++ " and " ++ (1136+1).str.rest')
@@ -592,7 +592,7 @@ fac = make_fac(4)
 ## run(fac)
 #. 24
 ## dump_compile(fac)
-#. call(makeBob(root_bob, {'$fac': function(_, env_b, k) { return [k, makeBob(root_bob, {'$()': function(_, fac_b, k) { return call(fac_b, '$n', [call, '$==', [extendK, {'$arg1': function(_, __, k) { return [k, 0]; }}, [call, '$()', [call, '$if', [extendK, {'$so': function(_, __, k) { return [k, 1]; }, '$else': function(_, __, k) { return call(fac_b, '$n', [call, '$*', [extendK, {'$arg1': function(_, __, k) { return call(env_b, '$fac', [extendK, {'$n': function(_, __, k) { return call(fac_b, '$n', [call, '$-', [extendK, {'$arg1': function(_, __, k) { return [k, 1]; }}, [call, '$()', k]]]); }}, [call, '$()', k]]); }}, [call, '$()', k]]]); }}, [call, '$()', k]]]]]]); }})]; }}), '$fac', [extendK, {'$n': function(_, __, k) { return [k, 4]; }}, [call, '$()', null]])
+#. call(makeBob(rootBob, {'$fac': function(_, env_b, k) { return [k, makeBob(rootBob, {'$()': function(_, fac_b, k) { return call(fac_b, '$n', [call, '$==', [extendK, {'$arg1': function(_, __, k) { return [k, 0]; }}, [call, '$()', [call, '$if', [extendK, {'$so': function(_, __, k) { return [k, 1]; }, '$else': function(_, __, k) { return call(fac_b, '$n', [call, '$*', [extendK, {'$arg1': function(_, __, k) { return call(env_b, '$fac', [extendK, {'$n': function(_, __, k) { return call(fac_b, '$n', [call, '$-', [extendK, {'$arg1': function(_, __, k) { return [k, 1]; }}, [call, '$()', k]]]); }}, [call, '$()', k]]); }}, [call, '$()', k]]]); }}, [call, '$()', k]]]]]]); }})]; }}), '$fac', [extendK, {'$n': function(_, __, k) { return [k, 4]; }}, [call, '$()', null]])
 
 def make_fib(n):
     fib = parse("""
