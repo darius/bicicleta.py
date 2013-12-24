@@ -219,48 +219,52 @@ root_bob = Bob(None, {})
 # Glossary:
 #   senv: static environment: mapping each variable name to an index
 #     into the interpreter's runtime env. (But the compiler uses the
-#     Python environment instead.)
-#   py_foo: represents a python expression.
+#     Javascript environment instead.)
+#   js_foo: represents a javascript expression.
 #     Either a string of literal code, or a 3-tuple for an expression to
 #     construct a 3-tuple.
 
-def py_compile(expr, py_k='None'):
-    return py_render(expr.compile(py_k))
+def js_compile(expr, js_k='null'):
+    return js_render(expr.compile(js_k))
 
-def py_render(py):
+def js_render(py):
     if isinstance(py, str):
         return py
-    py_fn, py_free_var, py_k = py
-    return '(%s, %s, %s)' % tuple(map(py_render, (py_fn, py_free_var, py_k)))
+    js_fn, js_free_var, js_k = py
+    return '[%s, %s, %s]' % tuple(map(js_render, (js_fn, js_free_var, js_k)))
 
-def py_apply_cont(py_k, py):
-    if isinstance(py_k, str):
-        return '(%s, %s)' % (py_k, py_render(py))    
-    py_fn, py_free_var, py_k = py_k
-    if py_fn == 'extend_k':
-        return py_apply_cont(py_k, 'Bob(%s, %s)' % (py_render(py),
-                                                    py_render(py_free_var)))
+def js_apply_cont(js_k, py):
+    if isinstance(js_k, str):
+        return '[%s, %s]' % (js_k, js_render(py))    
+    js_fn, js_free_var, js_k = js_k
+    if js_fn == 'extendK':
+        return js_apply_cont(js_k, 'makeBob(%s, %s)' % (js_render(py),
+                                                        js_render(js_free_var)))
     else:
-        return '%s(%s, %s, %s)' % (py_render(py_fn),
-                                   py_render(py),
-                                   py_render(py_free_var),
-                                   py_render(py_k))
+        return '%s(%s, %s, %s)' % (js_render(js_fn),
+                                   js_render(py),
+                                   js_render(js_free_var),
+                                   js_render(js_k))
 
-def py_push_cont(py_fn, py_free_var, py_k):
-    return (py_fn, py_free_var, py_k)
+def js_push_cont(js_fn, js_free_var, js_k):
+    return (js_fn, js_free_var, js_k)
 
-def py_name(name):
-    # Avoid Bicicleta names shadowing Python ones when compiled to
+def js_name(name):
+    # Avoid Bicicleta names shadowing Javascript ones when compiled to
     # Python.
     return '__' if name is None else name + '_b'
+
+js_repr = repr                  # XXX unicode different
+
+def js_slot(slot): return '$' + slot
 
 class VarRef(object):
     def __init__(self, name):
         self.name = name
     def __repr__(self):
         return self.name
-    def compile(self, py_k):
-        return py_apply_cont(py_k, py_name(self.name))
+    def compile(self, js_k):
+        return js_apply_cont(js_k, js_name(self.name))
     def analyze(self, senv):
         self.index = senv[self.name]
     def eval(self, env, k):
@@ -271,9 +275,9 @@ class Literal(object):
         self.value = value
     def __repr__(self):
         return repr(self.value)
-    def compile(self, py_k):
-        py = 'root_bob' if self.value is root_bob else repr(self.value)
-        return py_apply_cont(py_k, py)
+    def compile(self, js_k):
+        py = 'root_bob' if self.value is root_bob else js_repr(self.value)
+        return js_apply_cont(js_k, py)
     def analyze(self, senv):
         pass
     def eval(self, env, k):
@@ -285,8 +289,8 @@ class Call(object):
         self.slot = slot
     def __repr__(self):
         return '%s.%s' % (self.receiver, self.slot)
-    def compile(self, py_k):
-        return self.receiver.compile(py_push_cont('call', repr(self.slot), py_k))
+    def compile(self, js_k):
+        return self.receiver.compile(js_push_cont('call', js_repr(js_slot(self.slot)), js_k))
     def analyze(self, senv):
         self.receiver.analyze(senv)
     def eval(self, env, k):
@@ -302,14 +306,16 @@ class Extend(object):
                              self.name + ': ' if self.name else '',
                                ', '.join('%s=%s' % binding
                                          for binding in self.bindings))
-    def compile(self, py_k):
-        me = py_name(self.name)
+    def compile(self, js_k):
+        me = js_name(self.name)
         methods_expr = (
-            '{%s}' % (', '.join('%r: (lambda _, %s, k: %s)'
-                                % (slot, me, py_render(expr.compile('k')))
+            '{%s}' % (', '.join('%s: function(_, %s, k) { return %s; }'
+                                % (js_repr(js_slot(slot)),
+                                   me,
+                                   js_render(expr.compile('k')))
                                 for slot, expr in self.bindings)))
         assert isinstance(methods_expr, str)
-        return self.base.compile(py_push_cont('extend_k', methods_expr, py_k))
+        return self.base.compile(js_push_cont('extendK', methods_expr, js_k))
     def analyze(self, senv):
         self.base.analyze(senv)
         if self.name is not None:
@@ -438,9 +444,9 @@ def run(program, compile=False, dump=False, trace=False):
         program = parse(program)
     program.analyze({'sys': 0})
     if compile:
-        py = py_compile(program)
-        if dump: print(py)
-        state = eval(py)
+        js = js_compile(program)
+        print(js)
+        return #state = eval(py)
     else:
         state = program.eval(global_env, None)
     return trampoline(state, trace)
@@ -456,7 +462,7 @@ def load(filename, compile=False):
 
 #if False:
 if True:
-    compiling = True
+    compiling = False
     extend_in_place(bool_methods,    load('sys_bool.bicicleta',   compile=compiling))
     extend_in_place(number_methods,  load('sys_number.bicicleta', compile=compiling))
     extend_in_place(string_methods,  load('sys_string.bicicleta', compile=compiling))
@@ -471,17 +477,16 @@ if True:
 ## parse('5')
 #. 5
 
-## py_compile(parse('5'), 'k')
-#. '(k, 5)'
-## py_compile(parse('5+6'), 'k')
-#. "call(5, '+', (extend_k, {'arg1': (lambda _, __, k: (k, 6))}, (call, '()', k)))"
+## js_compile(parse('5'), 'k')
+#. '[k, 5]'
+## js_compile(parse('5+6'), 'null')
+#. "call(5, '$+', [extendK, {'$arg1': function(_, __, k) { return [k, 6]; }}, [call, '$()', null]])"
 
 def dump_compile(program):
     return run(program, compile=True, dump=True)
 
 ## dump_compile('5+6')
-#. call(5, '+', (extend_k, {'arg1': (lambda _, __, k: (k, 6))}, (call, '()', None)))
-#. 11
+#. call(5, '$+', [extendK, {'$arg1': function(_, __, k) { return [k, 6]; }}, [call, '$()', null]])
 
 ## run('5')
 #. 5
@@ -555,8 +560,7 @@ test_extend = parse("""
 ## run(test_extend)
 #. 14
 ## dump_compile(test_extend)
-#. call(Bob(root_bob, {'three': (lambda _, main_b, k: (k, Bob(root_bob, {'x': (lambda _, me_b, k: (k, 3)), 'xx': (lambda _, me_b, k: call(me_b, 'x', (call, '+', (extend_k, {'arg1': (lambda _, __, k: call(me_b, 'x', k))}, (call, '()', k)))))}))), 'four': (lambda _, main_b, k: call(main_b, 'three', (extend_k, {'x': (lambda _, __, k: (k, 4))}, k))), 'result': (lambda _, main_b, k: call(main_b, 'three', (call, 'xx', (call, '+', (extend_k, {'arg1': (lambda _, __, k: call(main_b, 'four', (call, 'xx', k)))}, (call, '()', k))))))}), 'result', None)
-#. 14
+#. call(makeBob(root_bob, {'$three': function(_, main_b, k) { return [k, makeBob(root_bob, {'$x': function(_, me_b, k) { return [k, 3]; }, '$xx': function(_, me_b, k) { return call(me_b, '$x', [call, '$+', [extendK, {'$arg1': function(_, __, k) { return call(me_b, '$x', k); }}, [call, '$()', k]]]); }})]; }, '$four': function(_, main_b, k) { return call(main_b, '$three', [extendK, {'$x': function(_, __, k) { return [k, 4]; }}, k]); }, '$result': function(_, main_b, k) { return call(main_b, '$three', [call, '$xx', [call, '$+', [extendK, {'$arg1': function(_, __, k) { return call(main_b, '$four', [call, '$xx', k]); }}, [call, '$()', k]]]]); }}), '$result', null)
 
 
 ## run('"hey " ++ 42.str ++ " and " ++ (1136+1).str.rest')
@@ -588,8 +592,7 @@ fac = make_fac(4)
 ## run(fac)
 #. 24
 ## dump_compile(fac)
-#. call(Bob(root_bob, {'fac': (lambda _, env_b, k: (k, Bob(root_bob, {'()': (lambda _, fac_b, k: call(fac_b, 'n', (call, '==', (extend_k, {'arg1': (lambda _, __, k: (k, 0))}, (call, '()', (call, 'if', (extend_k, {'so': (lambda _, __, k: (k, 1)), 'else': (lambda _, __, k: call(fac_b, 'n', (call, '*', (extend_k, {'arg1': (lambda _, __, k: call(env_b, 'fac', (extend_k, {'n': (lambda _, __, k: call(fac_b, 'n', (call, '-', (extend_k, {'arg1': (lambda _, __, k: (k, 1))}, (call, '()', k)))))}, (call, '()', k))))}, (call, '()', k)))))}, (call, '()', k))))))))})))}), 'fac', (extend_k, {'n': (lambda _, __, k: (k, 4))}, (call, '()', None)))
-#. 24
+#. call(makeBob(root_bob, {'$fac': function(_, env_b, k) { return [k, makeBob(root_bob, {'$()': function(_, fac_b, k) { return call(fac_b, '$n', [call, '$==', [extendK, {'$arg1': function(_, __, k) { return [k, 0]; }}, [call, '$()', [call, '$if', [extendK, {'$so': function(_, __, k) { return [k, 1]; }, '$else': function(_, __, k) { return call(fac_b, '$n', [call, '$*', [extendK, {'$arg1': function(_, __, k) { return call(env_b, '$fac', [extendK, {'$n': function(_, __, k) { return call(fac_b, '$n', [call, '$-', [extendK, {'$arg1': function(_, __, k) { return [k, 1]; }}, [call, '$()', k]]]); }}, [call, '$()', k]]); }}, [call, '$()', k]]]); }}, [call, '$()', k]]]]]]); }})]; }}), '$fac', [extendK, {'$n': function(_, __, k) { return [k, 4]; }}, [call, '$()', null]])
 
 def make_fib(n):
     fib = parse("""
