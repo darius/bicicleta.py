@@ -446,7 +446,7 @@ def run(program, compile=False, dump=False, trace=False):
     if compile:
         js = js_compile(program)
         print(js)
-        return #state = eval(py)
+        return js   #state = eval(py)
     else:
         state = program.eval(global_env, None)
     return trampoline(state, trace)
@@ -485,8 +485,14 @@ if True:
 def dump_compile(program):
     return run(program, compile=True, dump=True)
 
+def js_gen(program):
+    js = run(program, compile=True)
+    js = 'startState = %s;' % (js,)
+    open('compiled.js', 'w').write(js)
+
 ## dump_compile('5+6')
 #. call(5, '$+', [extendK, {'$arg1': function(_, __, k) { return [k, 6]; }}, [call, '$()', null]])
+#. "call(5, '$+', [extendK, {'$arg1': function(_, __, k) { return [k, 6]; }}, [call, '$()', null]])"
 
 ## run('5')
 #. 5
@@ -561,6 +567,7 @@ test_extend = parse("""
 #. 14
 ## dump_compile(test_extend)
 #. call(makeBob(rootBob, {'$three': function(_, main_b, k) { return [k, makeBob(rootBob, {'$x': function(_, me_b, k) { return [k, 3]; }, '$xx': function(_, me_b, k) { return call(me_b, '$x', [call, '$+', [extendK, {'$arg1': function(_, __, k) { return call(me_b, '$x', k); }}, [call, '$()', k]]]); }})]; }, '$four': function(_, main_b, k) { return call(main_b, '$three', [extendK, {'$x': function(_, __, k) { return [k, 4]; }}, k]); }, '$result': function(_, main_b, k) { return call(main_b, '$three', [call, '$xx', [call, '$+', [extendK, {'$arg1': function(_, __, k) { return call(main_b, '$four', [call, '$xx', k]); }}, [call, '$()', k]]]]); }}), '$result', null)
+#. "call(makeBob(rootBob, {'$three': function(_, main_b, k) { return [k, makeBob(rootBob, {'$x': function(_, me_b, k) { return [k, 3]; }, '$xx': function(_, me_b, k) { return call(me_b, '$x', [call, '$+', [extendK, {'$arg1': function(_, __, k) { return call(me_b, '$x', k); }}, [call, '$()', k]]]); }})]; }, '$four': function(_, main_b, k) { return call(main_b, '$three', [extendK, {'$x': function(_, __, k) { return [k, 4]; }}, k]); }, '$result': function(_, main_b, k) { return call(main_b, '$three', [call, '$xx', [call, '$+', [extendK, {'$arg1': function(_, __, k) { return call(main_b, '$four', [call, '$xx', k]); }}, [call, '$()', k]]]]); }}), '$result', null)"
 
 
 ## run('"hey " ++ 42.str ++ " and " ++ (1136+1).str.rest')
@@ -593,6 +600,7 @@ fac = make_fac(4)
 #. 24
 ## dump_compile(fac)
 #. call(makeBob(rootBob, {'$fac': function(_, env_b, k) { return [k, makeBob(rootBob, {'$()': function(_, fac_b, k) { return call(fac_b, '$n', [call, '$==', [extendK, {'$arg1': function(_, __, k) { return [k, 0]; }}, [call, '$()', [call, '$if', [extendK, {'$so': function(_, __, k) { return [k, 1]; }, '$else': function(_, __, k) { return call(fac_b, '$n', [call, '$*', [extendK, {'$arg1': function(_, __, k) { return call(env_b, '$fac', [extendK, {'$n': function(_, __, k) { return call(fac_b, '$n', [call, '$-', [extendK, {'$arg1': function(_, __, k) { return [k, 1]; }}, [call, '$()', k]]]); }}, [call, '$()', k]]); }}, [call, '$()', k]]]); }}, [call, '$()', k]]]]]]); }})]; }}), '$fac', [extendK, {'$n': function(_, __, k) { return [k, 4]; }}, [call, '$()', null]])
+#. "call(makeBob(rootBob, {'$fac': function(_, env_b, k) { return [k, makeBob(rootBob, {'$()': function(_, fac_b, k) { return call(fac_b, '$n', [call, '$==', [extendK, {'$arg1': function(_, __, k) { return [k, 0]; }}, [call, '$()', [call, '$if', [extendK, {'$so': function(_, __, k) { return [k, 1]; }, '$else': function(_, __, k) { return call(fac_b, '$n', [call, '$*', [extendK, {'$arg1': function(_, __, k) { return call(env_b, '$fac', [extendK, {'$n': function(_, __, k) { return call(fac_b, '$n', [call, '$-', [extendK, {'$arg1': function(_, __, k) { return [k, 1]; }}, [call, '$()', k]]]); }}, [call, '$()', k]]); }}, [call, '$()', k]]]); }}, [call, '$()', k]]]]]]); }})]; }}), '$fac', [extendK, {'$n': function(_, __, k) { return [k, 4]; }}, [call, '$()', null]])"
 
 def make_fib(n):
     fib = parse("""
@@ -633,3 +641,6 @@ def make_fib(n):
 #. [(22:())]
 ## run('7 + sys.vector{elements = sys.cons {first=5, rest=sys.empty}}')
 #. [(12:())]
+
+if __name__ == '__main__':
+    js_gen(make_fib(26))

@@ -119,10 +119,20 @@ var primopMethods = {
 function primAddK(arg1, me, k) {
     return [k, me.primval + arg1]; // XXX make sure it's a number first
 }
+function primSubK(arg1, me, k) { return [k, me.primval - arg1]; }
+function primMulK(arg1, me, k) { return [k, me.primval * arg1]; }
+function primDivK(arg1, me, k) { return [k, me.primval / arg1]; }
+function primEqK(arg1, me, k)  { return [k, me.primval == arg1]; }
+function primLtK(arg1, me, k)  { return [k, me.primval < arg1]; }
 
 var numberMethods = {
     '$is_number': function(_, me, k) { return [k, true]; },
-    '$+': makePrimopMethod(primAddK),
+    '$+':  makePrimopMethod(primAddK),
+    '$-':  makePrimopMethod(primSubK),
+    '$*':  makePrimopMethod(primMulK),
+    '$/':  makePrimopMethod(primDivK),
+    '$==': makePrimopMethod(primEqK),
+    '$<':  makePrimopMethod(primLtK),
 };
 
 var stringMethods = {
